@@ -26,6 +26,13 @@ main {
 }
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: 10px; padding: 14px; }
 .grow { min-height: 70vh; }
+.panel.span { grid-column: 1 / -1; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px 14px; }
+.grid4 .wide2 { grid-column: span 2; }
+#graphicsList { display: flex; flex-direction: column; gap: 6px; margin: 6px 0; }
+.gfx-row { display: flex; align-items: center; gap: 10px; padding: 6px 8px; border: 1px solid var(--border); border-radius: 7px; }
+.gfx-row input[type=number] { width: 70px; }
+code { background: #0c0e12; padding: 1px 5px; border-radius: 4px; color: var(--accent); }
 label { display: block; margin: 8px 0; color: var(--muted); }
 label input, label select { width: 100%; margin-top: 4px; }
 label.chk { display: flex; align-items: center; gap: 8px; }

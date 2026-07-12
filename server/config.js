@@ -51,3 +51,23 @@ export async function loadState(cameraId, config) {
 export function findCamera(config, cameraId) {
   return (config.cameras || []).find((c) => c.id === cameraId);
 }
+
+// Geteilter Spielstand (Down & Distance, Strafen, LOS/First-Down) fuer alle Kameras.
+export const GAMESTATE_PATH = join(CONFIG_DIR, 'gamestate.json');
+
+export async function loadGameState(config) {
+  try {
+    return JSON.parse(await readFile(GAMESTATE_PATH, 'utf8'));
+  } catch {
+    return config?.gameState ?? {
+      possession: 'home', down: 1, distance: 10, goalToGo: false,
+      losYard: 45.0, firstDownYard: 55.0, quarter: 1, clock: '15:00',
+      penalty: { active: false, text: '', team: 'home' },
+    };
+  }
+}
+
+export async function saveGameState(gs) {
+  await mkdir(CONFIG_DIR, { recursive: true });
+  await writeFile(GAMESTATE_PATH, JSON.stringify(gs, null, 2), 'utf8');
+}

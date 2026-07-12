@@ -63,6 +63,60 @@
       </div>
       <pre id="log"></pre>
     </section>
+
+    <section class="panel span">
+      <h2>5 · Spielstand · Down &amp; Distance · Strafen</h2>
+      <div class="grid4">
+        <label>Ballbesitz
+          <select id="possession"><option value="home">Home</option><option value="away">Away</option></select>
+        </label>
+        <label>Down
+          <select id="down"><option>1</option><option>2</option><option>3</option><option>4</option></select>
+        </label>
+        <label>Distance (Yards)
+          <input type="number" id="distance" value="10" step="1" />
+        </label>
+        <label class="chk"><input type="checkbox" id="goalToGo" /> Goal to Go</label>
+
+        <label>Line of Scrimmage (Yard)
+          <input type="number" id="losYard" value="45" step="0.5" />
+        </label>
+        <label>First-Down (Yard)
+          <input type="number" id="firstDownYard" value="55" step="0.5" />
+        </label>
+        <label>Quarter
+          <input type="number" id="quarter" value="1" min="1" max="4" />
+        </label>
+        <label>Clock
+          <input type="text" id="clock" value="15:00" />
+        </label>
+      </div>
+      <div class="row">
+        <button id="nextDown">Nächster Down ▸</button>
+        <button id="firstDownBtn">Neue Serie (1st &amp; 10)</button>
+        <span id="ddPreview" class="pill"></span>
+      </div>
+
+      <h2>Strafe</h2>
+      <div class="grid4">
+        <label class="chk"><input type="checkbox" id="penActive" /> Strafe aktiv</label>
+        <label>Team
+          <select id="penTeam"><option value="home">Home</option><option value="away">Away</option></select>
+        </label>
+        <label class="wide2">Text (z.&nbsp;B. „Halten #75, 10 Yards")
+          <input type="text" id="penText" placeholder="Pass Interference, 15 Yards" />
+        </label>
+      </div>
+
+      <h2>Team-Logos auf dem Rasen</h2>
+      <p class="hint">Position/Größe der Logos werden über <code>config.json → fieldGraphics[]</code>
+        gesetzt. Hier live an-/ausschalten &amp; grob positionieren:</p>
+      <div id="graphicsList"></div>
+      <div class="row">
+        <label class="chk"><input type="checkbox" id="showGraphics" checked /> Logos anzeigen</label>
+        <label class="chk"><input type="checkbox" id="showScorebug" checked /> Scorebug anzeigen</label>
+      </div>
+    </section>
   </main>
 
   <script src="app.js" type="module"></script>

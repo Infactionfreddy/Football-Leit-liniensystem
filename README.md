@@ -31,6 +31,16 @@ Kamera ──SDI──> DeckLink ─┐
 
 Details: siehe [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) und [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## Funktionsumfang
+
+- **First-Down-Line** (gelb) + **Line of Scrimmage** (blau) – perspektivisch, hinter Spielern.
+- **Team-Logos auf dem Rasen** – PNG mit Alpha, aufs Feld gewarpt, ebenfalls hinter Spielern
+  (`worker/graphics.py`, Config `fieldGraphics[]`).
+- **Nächste Spielzüge (Down & Distance)** + **Strafen** – Game-State-Modell, das die Feldlinien
+  speist und einen **Scorebug/Strafen-Banner** rendert (`worker/hud.py`); dieselben Werte lassen
+  sich optional per **VMix-API (SetText)** an einen GT-Title pushen.
+- Alles **live steuerbar** über die Web-UI (Down ▸, Neue Serie, Strafe ein/aus, Logo-Position).
+
 ## Warum die Linie *hinter* den Spielern liegt
 
 Die Linie wird **nur auf rasenfarbene Pixel** gemalt (HSV-Farb-Keying). Steht ein Spieler
@@ -74,8 +84,9 @@ NDI-Feeds bleiben unberührt.
 
 | Pfad | Inhalt |
 |------|--------|
-| `server/` | Node.js Control-Plane (Express + WebSocket, VMix-Client, Homographie-Preview) |
-| `web/` | Kalibrier-UI (Browser-Canvas) |
-| `worker/` | Python/OpenCV Data-Plane (Homographie, Okklusion, I/O, NDI) |
-| `config/` | Feldmodell, Kameras, Kalibrierpunkte, Laufzeit-State |
+| `server/` | Node.js Control-Plane (Express + WebSocket, VMix-Client, Homographie-Preview, Game-State) |
+| `web/` | Kalibrier- & Spielstand-UI (Browser-Canvas) |
+| `worker/` | Python/OpenCV Data-Plane: `homography` · `occlusion` · `graphics` (Logos) · `hud` (Scorebug) · I/O/NDI |
+| `config/` | Feldmodell, Teams, `fieldGraphics`, `gameState`, Kameras, Kalibrierpunkte, Laufzeit-State |
+| `assets/` | Team-Logos (PNG mit Alpha) – eigene ablegen |
 | `docs/` | Architektur & Roadmap |

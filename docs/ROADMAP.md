@@ -7,6 +7,9 @@
 - [x] Web-Kalibrier-UI (Punkte klicken, Preview)
 - [x] VMix-API-Client (Grundfunktionen)
 - [x] I/O-Abstraktion Datei/Webcam + NDI/DeckLink-Anbindung
+- [x] Team-Logos aufs Feld (perspektivisch + Okklusion)
+- [x] Game-State: Down & Distance, LOS (blau) + First-Down (gelb), Strafen-Banner, Scorebug
+- [x] VMix-Push (SetText) für Scorebug/Strafen als Alternative zum Burn-in
 
 ## Phase 1 — Feste Kameras live
 - [ ] NDI-Eingang real testen (cyndilib) mit einer Produktionskamera

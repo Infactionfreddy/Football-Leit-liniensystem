@@ -24,6 +24,8 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import homography as hg           # noqa: E402
 import occlusion as occ          # noqa: E402
+import graphics as gfx           # noqa: E402
+import hud                       # noqa: E402
 from io_sources import open_source  # noqa: E402
 from io_sinks import open_sink      # noqa: E402
 
@@ -42,6 +44,11 @@ def find_camera(config, cam_id):
 
 def state_path(config_path, cam_id):
     return os.path.join(os.path.dirname(config_path), f"state.{cam_id}.json")
+
+
+def gamestate_path(config_path):
+    """Geteilter Spielstand (Down & Distance, Strafen) fuer alle Kameras."""
+    return os.path.join(os.path.dirname(config_path), "gamestate.json")
 
 
 def read_state(path, defaults):
@@ -70,10 +77,15 @@ def main():
     config = load_json(args.config)
     cam = find_camera(config, args.camera)
 
-    field = config.get("field", {})
-    field_width = float(field.get("width", 53.3))
+    field_cfg = config.get("field", {})
+    field_width = float(field_cfg.get("width", 53.3))
     line_cfg = config.get("line", {})
     occ_cfg = config.get("occlusion", {})
+    teams = config.get("teams", {})
+    field_graphics = config.get("fieldGraphics", [])
+    overlays = config.get("overlays", {})
+    assets_root = os.path.dirname(os.path.abspath(args.config))
+    assets_root = os.path.dirname(assets_root)  # Projektwurzel
 
     # Homographie aus Kalibrierung (fixed).
     cal = cam.get("calibration") or {}
@@ -98,8 +110,19 @@ def main():
         "enabled": True,
         "yardPosition": float(line_cfg.get("yardPosition", 45.0)),
         "colorBGR": line_cfg.get("colorBGR", [0, 220, 255]),
+        "showGraphics": True,
+        "showScorebug": True,
     }
     state = read_state(st_path, defaults)
+
+    # Geteilter Spielstand (Down & Distance, Strafen, LOS/First-Down).
+    gs_path = gamestate_path(args.config)
+    gs_defaults = config.get("gameState", {
+        "possession": "home", "down": 1, "distance": 10,
+        "losYard": 45.0, "firstDownYard": 55.0,
+        "penalty": {"active": False, "text": "", "team": "home"},
+    })
+    gamestate = read_state(gs_path, gs_defaults)
 
     print(f"[{args.camera}] Engine gestartet  quelle={spec}  sink={args.sink}  "
           f"mode={cam.get('mode')}", flush=True)
@@ -120,6 +143,7 @@ def main():
 
             if frame_no % args.state_poll == 0:
                 state = read_state(st_path, defaults)
+                gamestate = read_state(gs_path, gs_defaults)
 
             if tracked:
                 gray = None  # cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -128,13 +152,33 @@ def main():
                 H = hg.track_update(H, ref_gray, gray)
 
             if state.get("enabled", True):
-                quad_world = hg.yard_line_quad(
-                    float(state.get("yardPosition", 45.0)), field_width, width_yards)
-                quad_img = hg.project_points(H, quad_world)
-                line_mask = occ.rasterize_line(frame.shape[:2], quad_img)
-                field = occ.field_mask(frame, hsv_lo, hsv_hi, morph)
-                frame = occ.composite(frame, line_mask, field,
-                                      state.get("colorBGR", [0, 220, 255]), softness)
+                # Rasen-Maske einmal berechnen (fuer Linien UND Logos = Okklusion).
+                field_msk = occ.field_mask(frame, hsv_lo, hsv_hi, morph)
+
+                # 1) Team-Logos aufs Feld (hinter Spielern).
+                if state.get("showGraphics", True) and field_graphics:
+                    frame = gfx.render_field_graphics(
+                        frame, H, field_graphics, field=field_msk, assets_root=assets_root)
+
+                # 2) Line of Scrimmage (blau) + First-Down-Line (gelb) aus Spielstand.
+                los_cfg = overlays.get("lineOfScrimmage", {})
+                fd_cfg = overlays.get("firstDownLine", {"enabled": True})
+
+                def draw_line(yard, color):
+                    quad = hg.yard_line_quad(float(yard), field_width, width_yards)
+                    lm = occ.rasterize_line(frame.shape[:2], hg.project_points(H, quad))
+                    return occ.composite(frame, lm, field_msk, color, softness)
+
+                if los_cfg.get("enabled", True):
+                    frame = draw_line(gamestate.get("losYard", 45.0),
+                                      los_cfg.get("colorBGR", [255, 90, 0]))
+                if fd_cfg.get("enabled", True):
+                    fd_yard = gamestate.get("firstDownYard", state.get("yardPosition", 55.0))
+                    frame = draw_line(fd_yard, state.get("colorBGR", [0, 220, 255]))
+
+                # 3) Scorebug + Strafen-Banner (Bildschirm-Overlay, ins Feed gebrannt).
+                if state.get("showScorebug", True) and overlays.get("scorebug", {}).get("enabled", True):
+                    frame = hud.render_scorebug(frame, gamestate, teams, overlays)
 
             if not sink.write(frame):  # WindowSink: ESC -> False
                 break

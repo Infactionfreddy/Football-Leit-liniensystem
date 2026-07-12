@@ -25,11 +25,28 @@ Node.js ist ideal für Steuerung, aber **ungeeignet** für Echtzeit-Pixelverarbe
 - Schreibt Laufzeit-Steuerung in `config/state.<camera>.json` (der Worker liest sie).
 
 ### Data-Plane — Python/OpenCV (`worker/`)
-- `line_engine.py`: Hauptschleife Capture → Homographie → Yard-Linie → Rasen-Maske →
-  Compositing → Ausgabe.
+- `line_engine.py`: Hauptschleife Capture → Homographie → **Logos** → **LOS/First-Down-Linien**
+  → Rasen-Maske/Compositing → **Scorebug** → Ausgabe.
 - `homography.py`: Feld↔Bild-Abbildung (3×3), aus Kalibrierpunkten (`cv2.findHomography`).
-- `occlusion.py`: HSV-Rasen-Maske + Morphologie → Linie nur auf Feldpixeln.
+- `occlusion.py`: HSV-Rasen-Maske + Morphologie → Grafik nur auf Feldpixeln.
+- `graphics.py`: Team-Logos/Bilder perspektivisch aufs Feld warpen (`warpPerspective`),
+  mit derselben Rasen-Maske → **hinter Spielern**.
+- `hud.py`: Bildschirm-Scorebug (Down & Distance, Ballbesitz) + Strafen-Banner (Pillow).
 - `io_sources.py` / `io_sinks.py`: Datei / Webcam / **NDI (cyndilib)** / **DeckLink**.
+
+### Rendering-Reihenfolge (pro Frame)
+1. Rasen-Maske einmal berechnen (geteilt von Logos + Linien).
+2. **Team-Logos** aufs Feld (occludiert).
+3. **Line of Scrimmage** (blau) + **First-Down-Line** (gelb) aus dem Game-State (occludiert).
+4. **Scorebug + Strafen-Banner** als Bildschirm-Overlay obendrauf (nicht occludiert, gut lesbar).
+
+### Game-State (Down & Distance, Strafen)
+Ein **geteilter** Zustand `config/gamestate.json` (ein Spiel, alle Kameras) hält
+`down`, `distance`, `losYard`, `firstDownYard`, `possession`, `penalty`. Er wird vom Worker
+pro Poll gelesen und speist Linien **und** Scorebug. Über den Node-Server editierbar
+(`/api/gamestate`, `/api/gamestate/action` für „Nächster Down"/„Neue Serie"). Optional werden
+dieselben Werte per `SetText` an einen **VMix-GT-Title** gepusht (`overlays.vmixPush`), falls du
+den Scorebug lieber nativ in VMix statt im Feed haben willst.
 
 ### Warum die Ebenen so kommunizieren
 - **Config** (`config/config.json`): statisch, editiert über UI/Server. Feld, Kameras,

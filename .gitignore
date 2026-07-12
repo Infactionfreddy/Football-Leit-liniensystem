@@ -21,6 +21,10 @@ recordings/
 *.mkv
 !docs/**/*.mp4
 
+# Team-Logos / Grafiken (Rechte) - README bleibt
+assets/*
+!assets/README.md
+
 # Ausgaben
 out/
 *.log
