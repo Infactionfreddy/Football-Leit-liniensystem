@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Football Leit-Liniensystem – Kalibrierung</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>Leit-Liniensystem · Kalibrierung</h1>
+    <span id="conn" class="pill">verbinde…</span>
+  </header>
+
+  <main>
+    <section class="panel">
+      <h2>1 · Kamera & Standbild</h2>
+      <label>Kamera
+        <select id="camera"></select>
+      </label>
+      <label>Standbild (Frame aus deiner Aufnahme)
+        <input type="file" id="frame" accept="image/*" />
+      </label>
+      <p class="hint">Tipp: In deinem Video einen Frame mit gut sichtbaren Yard-Markierungen
+        als Bild exportieren und hier laden.</p>
+    </section>
+
+    <section class="panel grow">
+      <h2>2 · Referenzpunkte klicken</h2>
+      <p class="hint">Klicke ≥4 Punkte im Bild, deren <b>Feldkoordinaten</b> (Yards) du kennst
+        – z.&nbsp;B. Kreuzungen von Yard-Linie und Seitenlinie/Hash. Trage rechts die
+        Yard-Werte ein (X = entlang Feldlänge, Y = über die Breite, 0…53.3).</p>
+      <div class="canvas-wrap">
+        <canvas id="cv" width="960" height="540"></canvas>
+      </div>
+      <div class="row">
+        <button id="undo">Letzten Punkt löschen</button>
+        <button id="clear">Alle Punkte löschen</button>
+      </div>
+      <table id="points">
+        <thead><tr><th>#</th><th>Bild x,y</th><th>Welt X (Yard)</th><th>Welt Y (Yard)</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="panel">
+      <h2>3 · Linie & Vorschau</h2>
+      <label>Yard-Position <input type="number" id="yard" value="45" step="0.5" /></label>
+      <label>Linienbreite (Yard) <input type="number" id="lineW" value="0.35" step="0.05" /></label>
+      <label>Feldbreite (Yard) <input type="number" id="fieldW" value="53.3" step="0.1" /></label>
+      <div class="row">
+        <button id="preview" class="primary">Homographie & Vorschau</button>
+        <button id="save">Kalibrierung speichern</button>
+      </div>
+      <p id="msg" class="hint"></p>
+
+      <h2>4 · Linie live steuern</h2>
+      <label class="chk"><input type="checkbox" id="enabled" checked /> Linie an</label>
+      <label>Live Yard-Position <input type="number" id="liveYard" value="45" step="0.5" /></label>
+      <div class="row">
+        <button id="startW">Worker starten (NDI)</button>
+        <button id="stopW">Worker stoppen</button>
+      </div>
+      <pre id="log"></pre>
+    </section>
+  </main>
+
+  <script src="app.js" type="module"></script>
+</body>
+</html>

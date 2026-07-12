@@ -1,0 +1,10 @@
+# Kern (Offline-PoC laeuft nur hiermit):
+opencv-python>=4.8
+numpy>=1.24
+
+# Live-NDI (optional, native): pip install cyndilib
+# cyndilib>=1.0
+#
+# DeckLink-Capture: erscheint unter Windows/Linux oft als normales Video-Device
+# und ist dann direkt ueber OpenCV (--source-override "device:0") nutzbar.
+# Alternativ Blackmagic Desktop Video / Media Express -> NDI ausgeben.

@@ -1,0 +1,30 @@
+# Node
+node_modules/
+npm-debug.log*
+yarn-error.log*
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+
+# Laufzeit-Zustand (wird vom Control-Server geschrieben)
+config/state.*.json
+config/config.json
+
+# Aufnahmen / grosse Medien
+recordings/
+*.mp4
+*.mov
+*.mkv
+!docs/**/*.mp4
+
+# Ausgaben
+out/
+*.log
+
+# OS
+.DS_Store
+Thumbs.db
