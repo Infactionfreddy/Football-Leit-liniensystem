@@ -1,0 +1,43 @@
+{
+  "field": {
+    "units": "yards",
+    "length": 120.0,
+    "width": 53.3
+  },
+  "line": {
+    "colorBGR": [0, 220, 255],
+    "widthYards": 0.35,
+    "yardPosition": 45.0,
+    "softnessPx": 2
+  },
+  "occlusion": {
+    "_comment": "HSV-Schwellwerte fuer Rasen-Gruen (OpenCV: H 0-179, S/V 0-255). Pro Stadion/Licht kalibrieren.",
+    "fieldHsvLower": [33, 40, 40],
+    "fieldHsvUpper": [90, 255, 255],
+    "morphKernel": 5
+  },
+  "cameras": [
+    {
+      "id": "cam1",
+      "name": "Sideline 50",
+      "mode": "fixed",
+      "source": { "type": "file", "path": "recordings/cam1.mp4" },
+      "output": { "type": "ndi", "name": "LINE-CAM1" },
+      "calibration": {
+        "_comment": "imagePoints in Pixeln (x,y), worldPoints in Yards (X entlang der Feldlaenge, Y ueber die Breite). Mindestens 4 Korrespondenzen.",
+        "imagePoints": [
+          [320, 640],
+          [1600, 640],
+          [1780, 300],
+          [140, 300]
+        ],
+        "worldPoints": [
+          [40.0, 0.0],
+          [40.0, 53.3],
+          [55.0, 53.3],
+          [55.0, 0.0]
+        ]
+      }
+    }
+  ]
+}
