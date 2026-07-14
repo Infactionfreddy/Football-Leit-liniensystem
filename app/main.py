@@ -135,8 +135,8 @@ class MultiviewTile(QFrame):
         super().__init__()
         self.cam_id = cam_id
         self.setObjectName("MviewTile")
-        self.setFixedHeight(150)
-        self.setMinimumWidth(200)
+        self.setMinimumSize(240, 150)
+        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.setCursor(Qt.PointingHandCursor)
         v = QVBoxLayout(self); v.setContentsMargins(0, 0, 0, 0); v.setSpacing(0)
         head = QWidget()
@@ -165,6 +165,61 @@ class MultiviewTile(QFrame):
 
     def mousePressEvent(self, ev):
         self.clicked.emit(self.cam_id)
+
+
+class MultiviewWindow(QWidget):
+    """Eigenes Fenster (Monitor 2): Kamera-Wand aller Feeds als Grid."""
+    tileClicked = Signal(str)
+
+    def __init__(self, cameras):
+        super().__init__()
+        self.setWindowTitle("Kameras – Multiview")
+        v = QVBoxLayout(self); v.setContentsMargins(8, 8, 8, 8); v.setSpacing(8)
+        head = QLabel("MULTIVIEW · KAMERAS   (F11 = Vollbild, Esc = Fenster)")
+        head.setObjectName("XLabel")
+        v.addWidget(head)
+        grid = QGridLayout(); grid.setSpacing(8)
+        self.tiles = {}
+        n = max(1, len(cameras))
+        cols = int(n ** 0.5)
+        if cols * cols < n:
+            cols += 1
+        for i, cam in enumerate(cameras):
+            ndi = cam.get("output", {}).get("name", f"LINE-{cam['id'].upper()}")
+            tile = MultiviewTile(cam["id"], cam.get("name", cam["id"]), ndi)
+            tile.clicked.connect(self.tileClicked)
+            grid.addWidget(tile, i // cols, i % cols)
+            self.tiles[cam["id"]] = tile
+        v.addLayout(grid, 1)
+
+    def set_frame(self, cam_id, frame):
+        t = self.tiles.get(cam_id)
+        if t:
+            t.set_frame(frame)
+
+    def set_status(self, cam_id, st):
+        t = self.tiles.get(cam_id)
+        if t:
+            t.set_status(st)
+
+    def set_focused(self, cam_id):
+        for cid, t in self.tiles.items():
+            t.set_focused(cid == cam_id)
+
+    def place_on(self, screen, fullscreen=True):
+        if screen is not None:
+            self.setGeometry(screen.geometry())
+        if fullscreen:
+            self.showFullScreen()
+        else:
+            self.showNormal()
+        self.raise_(); self.activateWindow()
+
+    def keyPressEvent(self, ev):
+        if ev.key() == Qt.Key_F11:
+            self.showNormal() if self.isFullScreen() else self.showFullScreen()
+        elif ev.key() == Qt.Key_Escape:
+            self.showNormal()
 
 
 class FullscreenOutput(QWidget):
@@ -215,20 +270,36 @@ class MainWindow(QMainWindow):
 
         self.tiles = {}
         self._build_ui()
+
+        # Zweites Fenster: Kamera-Multiview (Monitor 2)
+        self.mview = MultiviewWindow(self.config.get("cameras", []))
+        self.mview.tileClicked.connect(self._set_focus)
+        self.tiles = self.mview.tiles
+        self._set_focus(self.focus_cam)
+        self._place_mview_initial()
+
         self._install_shortcuts()
         self.manager.set_gamestate_preview(self.preview_gs)
         self.manager.set_gamestate_program(self.program_gs)
         self._refresh_subs()
+
+    def _place_mview_initial(self):
+        screens = QApplication.screens()
+        cur = self.screen()
+        others = [s for s in screens if s is not cur] or screens
+        if len(screens) > 1:
+            self.mview.place_on(others[0], fullscreen=True)  # Kameras auf Monitor 2
+        else:
+            self.mview.resize(960, 620); self.mview.show()   # ein Monitor: eigenes Fenster
 
     # ---------------- UI ----------------
     def _build_ui(self):
         central = QWidget(); self.setCentralWidget(central)
         root = QVBoxLayout(central); root.setContentsMargins(10, 8, 10, 8); root.setSpacing(8)
         root.addWidget(self._build_topbar())
-        root.addWidget(self._build_monitors(), 3)
-        root.addWidget(self._build_multiview())
+        root.addWidget(self._build_monitors(), 4)
         root.addWidget(self._build_funcbar())
-        root.addWidget(self._build_tabs(), 2)
+        root.addWidget(self._build_tabs(), 3)
         self.statusBar().showMessage("Bereit · Kameras in 'Quelle / Ausgang' pruefen, dann 'Start Alle'.")
 
     def _build_topbar(self):
@@ -241,10 +312,17 @@ class MainWindow(QMainWindow):
         self.stopBtn2 = QPushButton("■  Stop Alle"); self.stopBtn2.setObjectName("Danger")
         self.stopBtn2.clicked.connect(self.stop_all)
         self.clock_lbl = QLabel("00:00:00"); self.clock_lbl.setObjectName("Clock")
+        self.screenSel = QComboBox()
+        for i in range(max(1, len(QApplication.screens()))):
+            self.screenSel.addItem(f"Monitor {i + 1}")
+        if len(QApplication.screens()) > 1:
+            self.screenSel.setCurrentIndex(1)
+        self.camWinBtn = QPushButton("🖵  Kameras anzeigen"); self.camWinBtn.clicked.connect(self._show_cameras)
         h.addWidget(title)
         h.addSpacing(14); h.addWidget(self.led); h.addWidget(QLabel("Engine"))
         h.addStretch()
-        h.addWidget(self.startBtn2); h.addWidget(self.stopBtn2)
+        h.addWidget(self.camWinBtn); h.addWidget(self.screenSel)
+        h.addSpacing(10); h.addWidget(self.startBtn2); h.addWidget(self.stopBtn2)
         h.addSpacing(14); h.addWidget(self.clock_lbl)
         t = QTimer(self); t.timeout.connect(lambda: self.clock_lbl.setText(QTime.currentTime().toString("HH:mm:ss"))); t.start(1000)
         return bar
@@ -271,20 +349,6 @@ class MainWindow(QMainWindow):
         v.addStretch(); v.addWidget(cap); v.addWidget(self.take_btn); v.addWidget(cut)
         v.addSpacing(6); v.addWidget(self.fps_pill); v.addStretch()
         return bar
-
-    def _build_multiview(self):
-        strip = QFrame(); strip.setObjectName("MviewStrip")
-        h = QHBoxLayout(strip); h.setContentsMargins(0, 0, 0, 0); h.setSpacing(8)
-        h.addWidget(QLabel("MULTIVIEW", objectName="XLabel"))
-        for cam in self.config.get("cameras", []):
-            ndi = cam.get("output", {}).get("name", f"LINE-{cam['id'].upper()}")
-            tile = MultiviewTile(cam["id"], cam.get("name", cam["id"]), ndi)
-            tile.clicked.connect(self._set_focus)
-            self.tiles[cam["id"]] = tile
-            h.addWidget(tile)
-        h.addStretch()
-        self.tiles[self.focus_cam].set_focused(True)
-        return strip
 
     def _build_funcbar(self):
         bar = QFrame(); bar.setObjectName("FuncBar"); bar.setFixedHeight(52)
@@ -664,6 +728,11 @@ class MainWindow(QMainWindow):
     def _set_led(self, on):
         self.led.setStyleSheet(f"background:{'#2ecc5a' if on else '#5c6472'}; border-radius:5px;")
 
+    def _show_cameras(self):
+        screens = QApplication.screens()
+        idx = min(self.screenSel.currentIndex(), len(screens) - 1)
+        self.mview.place_on(screens[idx] if screens else None, fullscreen=True)
+
     def start_all(self):
         self.manager.fps = self.fpsSpin.value()
         self.manager.loop = self.loopChk.isChecked()
@@ -704,6 +773,8 @@ class MainWindow(QMainWindow):
     def closeEvent(self, ev):
         if self._fs is not None:
             self._fs.close()
+        if getattr(self, "mview", None) is not None:
+            self.mview.close()
         self.manager.stop_all()
         super().closeEvent(ev)
 

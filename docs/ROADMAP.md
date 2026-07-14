@@ -36,6 +36,8 @@
 - [x] Mehrere Kamera-Eingaenge in der App umschaltbar + NDI-Quellen-Discovery + Tracking-Toggle
 - [x] **Multi-Kamera gleichzeitig**: je Kamera eigene Pipeline/Tracker/NDI-Ausgang
       (`app/manager.py`), Multiview + Fokus, globaler Spielstand fuer alle Kameras
+- [x] **Zwei-Monitor-Layout**: Control-Fenster (Monitor 1) + separates Kamera-Multiview-
+      Fenster (Monitor 2, Vollbild), Monitor-Wahl in der Kopfleiste
 - [ ] Schnitt-Erkennung im Programm-Feed (Kamerawechsel) + Re-Init
 - [ ] Optional PTZ-Encoder-Anbindung (Kameramodell → H)
 - [ ] Tally-gesteuertes Umschalten pro-Kamera-Kalibrierung

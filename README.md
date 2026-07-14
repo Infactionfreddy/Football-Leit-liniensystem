@@ -12,12 +12,17 @@ _zusätzlichen_ Feed).
 
 ## Zwei Bedien-Oberflächen (gleiche Engine)
 
-1. **Desktop-App** (`app/`, PySide6) – professioneller, VMix-artiger Produktions-Look:
-   Kopfleiste mit Engine-Status + Uhr, fokussierte Kamera als **PREVIEW | TAKE/CUT | PROGRAM**,
-   **Multiview** aller Kameras, Funktions-Bar (Neue Serie / Down / Flag / Logos / Scorebug) und
-   Control-Tabs (Spiel, Strafen, Logos, Quelle/Ausgang, Kalibrierung). **Multi-Kamera**: je
-   Kamera eine Pipeline (`app/manager.py`). **Vollbild-Ausgang** (F11), Shortcuts
-   (Enter/Space = TAKE). Live-Bild Low-Latency direkt aus der OpenCV-Pipeline.
+1. **Desktop-App** (`app/`, PySide6) – **Zwei-Monitor-Layout**:
+   - **Monitor 1 – Control-Fenster**: Kopfleiste (Engine-Status, *Kameras anzeigen* +
+     Monitor-Wahl, Start/Stop Alle, Uhr), fokussierte Kamera als **PREVIEW | TAKE/CUT |
+     PROGRAM**, Funktions-Bar und Control-Tabs (Spiel, Strafen, Logos, Quelle/Ausgang,
+     Kalibrierung).
+   - **Monitor 2 – Kamera-Fenster** (`MultiviewWindow`): Multiview-Wand **aller** Kameras
+     (Kacheln mit Tracking-Status + NDI-Name), Vollbild via *Kameras anzeigen* / F11.
+     Klick auf eine Kachel = Fokus im Control-Fenster.
+
+   **Multi-Kamera**: je Kamera eine Pipeline (`app/manager.py`). Shortcuts (Enter/Space =
+   TAKE, F11 = Vollbild). Live-Bild Low-Latency direkt aus der OpenCV-Pipeline.
    **Windows/Linux/Mac.** Styling in `app/theme.py`.
 2. **Web-Control** (`server/` + `web/`) – Browser-UI zum Kalibrieren und Fernsteuern.
 
