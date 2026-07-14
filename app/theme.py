@@ -54,6 +54,13 @@ QMainWindow, QWidget {{ background: {C['bg']}; color: {C['text']};
 #FpsPill {{ background: {C['panel2']}; color: {C['muted']}; border: 1px solid {C['border']};
     border-radius: 10px; padding: 2px 10px; }}
 
+/* ---- Multiview ---- */
+#MviewStrip {{ background: {C['bg']}; }}
+#MviewTile {{ background: {C['panel']}; border: 2px solid {C['border']}; border-radius: 4px; }}
+#MviewHead {{ color: {C['muted']}; font-size: 11px; font-weight: 700; padding: 2px 6px; }}
+#MviewNdi {{ color: {C['faint']}; font-size: 10px; padding: 0 6px 2px; }}
+#MviewPane {{ background: #000; }}
+
 /* ---- Funktions-Bar ---- */
 #FuncBar {{ background: {C['panel']}; border: 1px solid {C['border']}; }}
 #FuncBar QPushButton {{ background: {C['elev']}; border: 1px solid {C['border2']}; border-radius: 5px;

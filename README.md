@@ -13,11 +13,12 @@ _zusätzlichen_ Feed).
 ## Zwei Bedien-Oberflächen (gleiche Engine)
 
 1. **Desktop-App** (`app/`, PySide6) – professioneller, VMix-artiger Produktions-Look:
-   Kopfleiste mit Engine-Status + Uhr, **PREVIEW | TAKE/CUT | PROGRAM** mit Tally-Headern,
-   Funktions-Bar (Neue Serie / Down / Flag / Logos / Scorebug) und Control-Tabs (Spiel,
-   Strafen, Logos, Quelle/Ausgang, Kalibrierung). **Vollbild-Programm-Ausgang** auf einem
-   zweiten Monitor (F11), Tastatur-Shortcuts (Enter/Leertaste = TAKE). Live-Bild kommt
-   Low-Latency direkt aus der OpenCV-Pipeline. **Windows/Linux/Mac.** Styling in `app/theme.py`.
+   Kopfleiste mit Engine-Status + Uhr, fokussierte Kamera als **PREVIEW | TAKE/CUT | PROGRAM**,
+   **Multiview** aller Kameras, Funktions-Bar (Neue Serie / Down / Flag / Logos / Scorebug) und
+   Control-Tabs (Spiel, Strafen, Logos, Quelle/Ausgang, Kalibrierung). **Multi-Kamera**: je
+   Kamera eine Pipeline (`app/manager.py`). **Vollbild-Ausgang** (F11), Shortcuts
+   (Enter/Space = TAKE). Live-Bild Low-Latency direkt aus der OpenCV-Pipeline.
+   **Windows/Linux/Mac.** Styling in `app/theme.py`.
 2. **Web-Control** (`server/` + `web/`) – Browser-UI zum Kalibrieren und Fernsteuern.
 
 Beide lesen/schreiben **dieselben** Dateien (`config/config.json`, `config/gamestate.json`)
@@ -44,14 +45,23 @@ Kamera ──SDI──> DeckLink ─┐
 
 Details: siehe [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) und [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
-## Eingänge & Ausgang (Signalkette)
+## Signalkette (Multi-Kamera)
 
-- **Mehrere Kamera-Eingänge**, in der App umschaltbar (Tab *Quelle / Ausgang → Aktive Kamera*):
-  Datei, USB/DeckLink-Device (`device:0`) oder **NDI** (mit *NDI-Quellen suchen*).
-- **Kamera-Tracking** pro Kamera zuschaltbar (frei geführte Kamera **oder** Programm-Feed):
-  bildbasierte Homographie-Nachführung (`worker/tracking.py`).
-- **Programm-Ausgang an VMix**: neuer NDI-Feed `LINE-CAMx` (blockiert bestehende NDI-Feeds
-  nicht). **SDI-Ausgang** folgt über DeckLink/AJA (native SDK-Schicht).
+**Jede Kamera einzeln rein → eigene Pipeline (eigenes Tracking + Kalibrierung) → eigener
+NDI-Feed an VMix.** VMix schaltet die fertigen Feeds `LINE-CAMx` um.
+
+```
+Kamera 1 ─SDI/NDI─► [Track + Linien/Logos] ─► NDI "LINE-CAM1" ─┐
+Kamera 2 ─SDI/NDI─► [Track + Linien/Logos] ─► NDI "LINE-CAM2" ─┼─► VMix
+Kamera N ─ …                                                    ┘
+        (Spielstand Down&Distance/First-Down/Strafen = GLOBAL, speist alle)
+```
+
+- **N gleichzeitige Kamera-Pipelines** (`app/manager.py`, ein Engine-Thread je Kamera).
+- **Multiview** aller Kameras in der App; Klick = Fokus (große PREVIEW|PROGRAM-Ansicht).
+- **Dediziertes Kamera-Tracking je Kamera** (`worker/tracking.py`), pro Kamera zuschaltbar.
+- Eingang je Kamera: Datei · Device (`device:0`, USB/DeckLink) · **NDI** (mit *Quellen suchen*).
+- **Ausgang je Kamera** als eigener NDI-Feed an VMix; **SDI** folgt über DeckLink/AJA.
 
 ## Funktionsumfang
 

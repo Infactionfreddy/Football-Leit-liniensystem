@@ -34,6 +34,8 @@
 - [ ] **Feldmodell-Reanchor** gegen Drift: Yard-/Seitenlinien pro Frame erkennen und absolut
       einpassen (`PitchTracker.reanchor`) — Kern für broadcast-robust
 - [x] Mehrere Kamera-Eingaenge in der App umschaltbar + NDI-Quellen-Discovery + Tracking-Toggle
+- [x] **Multi-Kamera gleichzeitig**: je Kamera eigene Pipeline/Tracker/NDI-Ausgang
+      (`app/manager.py`), Multiview + Fokus, globaler Spielstand fuer alle Kameras
 - [ ] Schnitt-Erkennung im Programm-Feed (Kamerawechsel) + Re-Init
 - [ ] Optional PTZ-Encoder-Anbindung (Kameramodell → H)
 - [ ] Tally-gesteuertes Umschalten pro-Kamera-Kalibrierung
