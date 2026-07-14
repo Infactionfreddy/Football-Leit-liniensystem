@@ -23,7 +23,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import homography as hg           # noqa: E402
-import occlusion as occ          # noqa: E402
+import render                     # noqa: E402
 from io_sources import open_source  # noqa: E402
 from io_sinks import open_sink      # noqa: E402
 
@@ -42,6 +42,11 @@ def find_camera(config, cam_id):
 
 def state_path(config_path, cam_id):
     return os.path.join(os.path.dirname(config_path), f"state.{cam_id}.json")
+
+
+def gamestate_path(config_path):
+    """Geteilter Spielstand (Down & Distance, Strafen) fuer alle Kameras."""
+    return os.path.join(os.path.dirname(config_path), "gamestate.json")
 
 
 def read_state(path, defaults):
@@ -70,10 +75,9 @@ def main():
     config = load_json(args.config)
     cam = find_camera(config, args.camera)
 
-    field = config.get("field", {})
-    field_width = float(field.get("width", 53.3))
     line_cfg = config.get("line", {})
-    occ_cfg = config.get("occlusion", {})
+    assets_root = os.path.dirname(os.path.abspath(args.config))
+    assets_root = os.path.dirname(assets_root)  # Projektwurzel
 
     # Homographie aus Kalibrierung (fixed).
     cal = cam.get("calibration") or {}
@@ -98,17 +102,22 @@ def main():
         "enabled": True,
         "yardPosition": float(line_cfg.get("yardPosition", 45.0)),
         "colorBGR": line_cfg.get("colorBGR", [0, 220, 255]),
+        "showGraphics": True,
+        "showScorebug": True,
     }
     state = read_state(st_path, defaults)
 
+    # Geteilter Spielstand (Down & Distance, Strafen, LOS/First-Down).
+    gs_path = gamestate_path(args.config)
+    gs_defaults = config.get("gameState", {
+        "possession": "home", "down": 1, "distance": 10,
+        "losYard": 45.0, "firstDownYard": 55.0,
+        "penalty": {"active": False, "text": "", "team": "home"},
+    })
+    gamestate = read_state(gs_path, gs_defaults)
+
     print(f"[{args.camera}] Engine gestartet  quelle={spec}  sink={args.sink}  "
           f"mode={cam.get('mode')}", flush=True)
-
-    hsv_lo = occ_cfg.get("fieldHsvLower", [33, 40, 40])
-    hsv_hi = occ_cfg.get("fieldHsvUpper", [90, 255, 255])
-    morph = int(occ_cfg.get("morphKernel", 5))
-    width_yards = float(line_cfg.get("widthYards", 0.35))
-    softness = int(line_cfg.get("softnessPx", 2))
 
     frame_no = 0
     try:
@@ -120,6 +129,7 @@ def main():
 
             if frame_no % args.state_poll == 0:
                 state = read_state(st_path, defaults)
+                gamestate = read_state(gs_path, gs_defaults)
 
             if tracked:
                 gray = None  # cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
@@ -128,13 +138,12 @@ def main():
                 H = hg.track_update(H, ref_gray, gray)
 
             if state.get("enabled", True):
-                quad_world = hg.yard_line_quad(
-                    float(state.get("yardPosition", 45.0)), field_width, width_yards)
-                quad_img = hg.project_points(H, quad_world)
-                line_mask = occ.rasterize_line(frame.shape[:2], quad_img)
-                field = occ.field_mask(frame, hsv_lo, hsv_hi, morph)
-                frame = occ.composite(frame, line_mask, field,
-                                      state.get("colorBGR", [0, 220, 255]), softness)
+                # Gemeinsames Rendering (identisch zur Desktop-App).
+                frame, _ = render.compose(
+                    frame, H, config, gamestate,
+                    show_graphics=state.get("showGraphics", True),
+                    show_scorebug=state.get("showScorebug", True),
+                    assets_root=assets_root)
 
             if not sink.write(frame):  # WindowSink: ESC -> False
                 break

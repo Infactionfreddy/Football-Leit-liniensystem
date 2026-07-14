@@ -191,5 +191,103 @@ $('stopW').onclick = async () => {
 
 $('camera').onchange = loadCameraCalibration;
 
+// ---- Spielstand (Down & Distance, Strafen) ----
+const ORD = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' };
+function ddText(gs) {
+  if (!gs.down) return '';
+  const d = ORD[gs.down] || gs.down + 'th';
+  return (gs.goalToGo || gs.distance <= 0) ? `${d} & Goal` : `${d} & ${gs.distance}`;
+}
+
+async function loadGameState() {
+  const gs = await (await fetch('/api/gamestate')).json();
+  $('possession').value = gs.possession ?? 'home';
+  $('down').value = gs.down ?? 1;
+  $('distance').value = gs.distance ?? 10;
+  $('goalToGo').checked = !!gs.goalToGo;
+  $('losYard').value = gs.losYard ?? 45;
+  $('firstDownYard').value = gs.firstDownYard ?? 55;
+  $('quarter').value = gs.quarter ?? 1;
+  $('clock').value = gs.clock ?? '15:00';
+  const pen = gs.penalty || {};
+  $('penActive').checked = !!pen.active;
+  $('penTeam').value = pen.team ?? 'home';
+  $('penText').value = pen.text ?? '';
+  $('ddPreview').textContent = ddText(gs);
+}
+
+async function pushGameState() {
+  const gs = {
+    possession: $('possession').value,
+    down: parseInt($('down').value, 10),
+    distance: parseFloat($('distance').value),
+    goalToGo: $('goalToGo').checked,
+    losYard: parseFloat($('losYard').value),
+    firstDownYard: parseFloat($('firstDownYard').value),
+    quarter: parseInt($('quarter').value, 10),
+    clock: $('clock').value,
+    penalty: { active: $('penActive').checked, team: $('penTeam').value, text: $('penText').value },
+  };
+  const res = await (await fetch('/api/gamestate', {
+    method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(gs),
+  })).json();
+  $('ddPreview').textContent = ddText(res);
+}
+
+['possession', 'down', 'distance', 'goalToGo', 'losYard', 'firstDownYard', 'quarter', 'clock',
+  'penActive', 'penTeam', 'penText'].forEach((id) => {
+  $(id).addEventListener('change', pushGameState);
+});
+
+async function gsAction(action) {
+  const res = await (await fetch('/api/gamestate/action', {
+    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ action }),
+  })).json();
+  await loadGameState();
+  $('ddPreview').textContent = ddText(res);
+}
+$('nextDown').onclick = () => gsAction('nextDown');
+$('firstDownBtn').onclick = () => gsAction('firstDown');
+
+// Logos an/aus (per Kamera-State) + Liste aus config.fieldGraphics.
+$('showGraphics').onchange = () => pushCameraFlags();
+$('showScorebug').onchange = () => pushCameraFlags();
+async function pushCameraFlags() {
+  const cam = currentCamera();
+  await fetch(`/api/cameras/${cam.id}/state`, {
+    method: 'PUT', headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ showGraphics: $('showGraphics').checked, showScorebug: $('showScorebug').checked }),
+  });
+}
+
+function renderGraphicsList() {
+  const box = $('graphicsList');
+  box.innerHTML = '';
+  (config.fieldGraphics || []).forEach((g, i) => {
+    const row = document.createElement('div');
+    row.className = 'gfx-row';
+    row.innerHTML =
+      `<label class="chk"><input type="checkbox" ${g.enabled !== false ? 'checked' : ''} data-i="${i}" data-k="enabled"> ${g.id}</label>` +
+      `<span class="hint">X</span><input type="number" step="0.5" value="${g.centerYard?.[0] ?? 60}" data-i="${i}" data-k="cx">` +
+      `<span class="hint">Y</span><input type="number" step="0.5" value="${g.centerYard?.[1] ?? 26.65}" data-i="${i}" data-k="cy">` +
+      `<span class="hint">Größe</span><input type="number" step="0.5" value="${g.widthYards ?? 12}" data-i="${i}" data-k="w">` +
+      `<span class="hint">Rot°</span><input type="number" step="1" value="${g.rotationDeg ?? 0}" data-i="${i}" data-k="rot">`;
+    box.appendChild(row);
+  });
+  box.querySelectorAll('input').forEach((inp) => {
+    inp.onchange = async () => {
+      const g = config.fieldGraphics[+inp.dataset.i];
+      const k = inp.dataset.k;
+      if (k === 'enabled') g.enabled = inp.checked;
+      else if (k === 'cx') g.centerYard = [parseFloat(inp.value), g.centerYard?.[1] ?? 26.65];
+      else if (k === 'cy') g.centerYard = [g.centerYard?.[0] ?? 60, parseFloat(inp.value)];
+      else if (k === 'w') { g.widthYards = parseFloat(inp.value); g.heightYards = parseFloat(inp.value); }
+      else if (k === 'rot') g.rotationDeg = parseFloat(inp.value);
+      await fetch('/api/config', { method: 'PUT', headers: { 'content-type': 'application/json' }, body: JSON.stringify(config) });
+    };
+  });
+}
+
 connectWs();
-loadConfig();
+loadConfig().then(() => { renderGraphicsList(); });
+loadGameState();

@@ -7,7 +7,7 @@
   "line": {
     "colorBGR": [0, 220, 255],
     "widthYards": 0.35,
-    "yardPosition": 45.0,
+    "yardPosition": 55.0,
     "softnessPx": 2
   },
   "occlusion": {
@@ -15,6 +15,47 @@
     "fieldHsvLower": [33, 40, 40],
     "fieldHsvUpper": [90, 255, 255],
     "morphKernel": 5
+  },
+  "teams": {
+    "home": { "abbr": "HOME", "name": "Home Team", "logo": "assets/home.png", "colorBGR": [180, 60, 20] },
+    "away": { "abbr": "AWAY", "name": "Away Team", "logo": "assets/away.png", "colorBGR": [20, 40, 180] }
+  },
+  "fieldGraphics": [
+    {
+      "id": "logo-mid",
+      "type": "logo",
+      "enabled": true,
+      "image": "assets/home.png",
+      "_comment": "centerYard = [X entlang Feldlaenge, Y ueber Breite] in Yards; Midfield = [60, 26.65].",
+      "centerYard": [60.0, 26.65],
+      "widthYards": 12.0,
+      "heightYards": 12.0,
+      "rotationDeg": 0.0,
+      "opacity": 0.85,
+      "occlude": true
+    }
+  ],
+  "gameState": {
+    "possession": "home",
+    "down": 1,
+    "distance": 10,
+    "goalToGo": false,
+    "losYard": 45.0,
+    "firstDownYard": 55.0,
+    "quarter": 1,
+    "clock": "15:00",
+    "penalty": { "active": false, "text": "", "team": "home" }
+  },
+  "overlays": {
+    "lineOfScrimmage": { "enabled": true, "colorBGR": [255, 90, 0] },
+    "firstDownLine": { "enabled": true, "colorBGR": [0, 220, 255] },
+    "scorebug": { "enabled": true },
+    "vmixPush": {
+      "_comment": "Optional dieselben Werte an einen VMix-GT-Title pushen (SetText). enabled=false lassen, wenn du im Feed brennst.",
+      "enabled": false,
+      "titleInput": "Scorebug",
+      "fields": { "DownDistance": "down_distance", "Penalty": "penalty_text" }
+    }
   },
   "cameras": [
     {
@@ -38,6 +79,15 @@
           [55.0, 0.0]
         ]
       }
+    },
+    {
+      "id": "cam2",
+      "name": "Endzone",
+      "mode": "tracked",
+      "_comment": "mode 'tracked' = frei gefuehrte Kamera / Programm-Feed -> bildbasiertes Tracking (PitchTracker).",
+      "source": { "type": "ndi", "name": "KAMERA-PC (Endzone)" },
+      "output": { "type": "ndi", "name": "LINE-CAM2" },
+      "calibration": { "imagePoints": [], "worldPoints": [] }
     }
   ]
 }

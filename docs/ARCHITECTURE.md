@@ -14,6 +14,19 @@
 Node.js ist ideal für Steuerung, aber **ungeeignet** für Echtzeit-Pixelverarbeitung bei
 1080p50. Deshalb strikte Trennung:
 
+### Front-Ends (austauschbar, gleiche Engine)
+- **Desktop-App (`app/`, PySide6)** – eigenständige Anwendung für Windows/Linux/Mac im
+  VMix-Stil: oben zwei Video-Monitore **PREVIEW | PROGRAM**, dazwischen **TAKE**, unten die
+  Control-Menüs als Tabs (Spiel, Strafen, Logos, Quelle/Ausgang, Kalibrierung). Die Engine
+  läuft als `QThread` (`app/engine.py`) und liefert die komponierten Frames **direkt** als
+  QImage → keine Encoding-/Streaming-Latenz. Optionaler NDI-Programm-Ausgang aus der App.
+  Preview/Program folgen dem Broadcast-Muster: Controls editieren den **Preview**-Zustand,
+  **TAKE** kopiert ihn nach **Program** (und schreibt `gamestate.json`).
+- **Web-Control (`server/` + `web/`)** – Browser-Oberfläche (siehe unten).
+
+Beide Front-Ends nutzen dasselbe Render-Modul `worker/render.py` und dieselben Dateien
+(`config/config.json`, `config/gamestate.json`) → identische Ausgabe, kein Auseinanderlaufen.
+
 ### Control-Plane — Node.js (`server/`)
 - Express-HTTP + WebSocket.
 - Serviert die Kalibrier-UI (`web/`).
@@ -25,11 +38,28 @@ Node.js ist ideal für Steuerung, aber **ungeeignet** für Echtzeit-Pixelverarbe
 - Schreibt Laufzeit-Steuerung in `config/state.<camera>.json` (der Worker liest sie).
 
 ### Data-Plane — Python/OpenCV (`worker/`)
-- `line_engine.py`: Hauptschleife Capture → Homographie → Yard-Linie → Rasen-Maske →
-  Compositing → Ausgabe.
+- `line_engine.py`: Hauptschleife Capture → Homographie → **Logos** → **LOS/First-Down-Linien**
+  → Rasen-Maske/Compositing → **Scorebug** → Ausgabe.
 - `homography.py`: Feld↔Bild-Abbildung (3×3), aus Kalibrierpunkten (`cv2.findHomography`).
-- `occlusion.py`: HSV-Rasen-Maske + Morphologie → Linie nur auf Feldpixeln.
+- `occlusion.py`: HSV-Rasen-Maske + Morphologie → Grafik nur auf Feldpixeln.
+- `graphics.py`: Team-Logos/Bilder perspektivisch aufs Feld warpen (`warpPerspective`),
+  mit derselben Rasen-Maske → **hinter Spielern**.
+- `hud.py`: Bildschirm-Scorebug (Down & Distance, Ballbesitz) + Strafen-Banner (Pillow).
 - `io_sources.py` / `io_sinks.py`: Datei / Webcam / **NDI (cyndilib)** / **DeckLink**.
+
+### Rendering-Reihenfolge (pro Frame)
+1. Rasen-Maske einmal berechnen (geteilt von Logos + Linien).
+2. **Team-Logos** aufs Feld (occludiert).
+3. **Line of Scrimmage** (blau) + **First-Down-Line** (gelb) aus dem Game-State (occludiert).
+4. **Scorebug + Strafen-Banner** als Bildschirm-Overlay obendrauf (nicht occludiert, gut lesbar).
+
+### Game-State (Down & Distance, Strafen)
+Ein **geteilter** Zustand `config/gamestate.json` (ein Spiel, alle Kameras) hält
+`down`, `distance`, `losYard`, `firstDownYard`, `possession`, `penalty`. Er wird vom Worker
+pro Poll gelesen und speist Linien **und** Scorebug. Über den Node-Server editierbar
+(`/api/gamestate`, `/api/gamestate/action` für „Nächster Down"/„Neue Serie"). Optional werden
+dieselben Werte per `SetText` an einen **VMix-GT-Title** gepusht (`overlays.vmixPush`), falls du
+den Scorebug lieber nativ in VMix statt im Feed haben willst.
 
 ### Warum die Ebenen so kommunizieren
 - **Config** (`config/config.json`): statisch, editiert über UI/Server. Feld, Kameras,
@@ -55,11 +85,26 @@ Geraden auf Geraden ab).
 
 ### 3. Kamera-Tracking (fest vs. frei)
 - **`mode: "fixed"`**: H ist konstant. Einmal pro Kamera/Preset kalibrieren. **Jetzt lauffähig.**
-- **`mode: "tracked"`**: H muss pro Frame nachgeführt werden. Erweiterungspunkt in
-  `homography.py::track_update()` — Optionen:
-  - **Optisch**: Feature-Matching/Optical-Flow gegen ein Referenz-Keyframe (rein Software).
-  - **Encoder**: Pan/Tilt/Zoom-Daten der Kamera → H aus Kameramodell (präziser, Hardware nötig).
-  - Start: Preset-Erkennung (bei PTZ-Presets zurück auf die passende `fixed`-H schalten).
+- **`mode: "tracked"`**: H muss pro Frame nachgeführt werden — nötig für frei geführte
+  Kameras **und** für einen geschnittenen Programm-Feed. Umgesetzt in
+  `worker/tracking.py::PitchTracker` (bildbasiert): ORB-Features zwischen Frame_{t-1} und
+  Frame_t → Warp-Homographie `dH` (RANSAC) → `H_t = dH · H_{t-1}`. Bei zu wenigen Inliern
+  wird H gehalten (kein Sprung), `lost` gesetzt.
+  - **Optisch (implementiert)**: rein Software, kein Sensor.
+  - **Encoder (Erweiterung)**: Pan/Tilt/Zoom-Daten → H aus Kameramodell (präziser, HW nötig).
+
+#### Machbarkeit (gemessen, synthetischer Schwenk+Zoom, 60 Frames)
+| | Wert |
+|---|---|
+| Kamera-Versatz Frame 0→60 | 147 px |
+| Linien-Drift am Ende | **6,2 px** (4,2 % der Kamerabewegung), 0 verlorene Frames |
+| Verlauf | 0,17 px (F1) → 3,0 px (F30) → 6,2 px (F60) |
+
+**Ehrliche Deutung:** Bildbasiertes Tracking ist machbar und für kurze Einstellungen gut.
+Reines Frame-zu-Frame-Chaining **driftet** aber langsam (Fehler summieren sich). Broadcast-
+robuste Systeme (Viz Arena etc.) verankern deshalb pro Frame zusätzlich an einem **Feldmodell**
+(erkannte Yard-/Seitenlinien) — Hook: `PitchTracker.reanchor()`. Das ist der eigentliche
+Schritt Richtung „wie die kommerziellen Systeme" (Phase 3).
 
 ## Signal-/Netz-Topologie mit VMix
 

@@ -1,6 +1,7 @@
 # Kern (Offline-PoC laeuft nur hiermit):
 opencv-python>=4.8
 numpy>=1.24
+pillow>=10.0        # sauberer Scorebug-/Strafen-Text (inkl. Umlaute)
 
 # Live-NDI (optional, native): pip install cyndilib
 # cyndilib>=1.0

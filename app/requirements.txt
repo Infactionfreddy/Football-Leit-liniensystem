@@ -1,0 +1,5 @@
+# Desktop-Control-App (Windows/Linux/Mac)
+PySide6>=6.6
+
+# Nutzt zusaetzlich die CV-Module aus worker/ -> deren requirements ebenfalls installieren:
+#   pip install -r worker/requirements.txt

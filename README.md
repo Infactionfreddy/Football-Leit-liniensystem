@@ -10,6 +10,25 @@ _zusätzlichen_ Feed).
 > Perspektive + Okklusion → Video/Fenster raus) läuft ohne Spezial-Hardware. Der Live-Pfad
 > (NDI/DeckLink) ist verdrahtet und dokumentiert.
 
+## Zwei Bedien-Oberflächen (gleiche Engine)
+
+1. **Desktop-App** (`app/`, PySide6) – **Zwei-Monitor-Layout**:
+   - **Monitor 1 – Control-Fenster**: Kopfleiste (Engine-Status, *Kameras anzeigen* +
+     Monitor-Wahl, Start/Stop Alle, Uhr), fokussierte Kamera als **PREVIEW | TAKE/CUT |
+     PROGRAM**, Funktions-Bar und Control-Tabs (Spiel, Strafen, Logos, Quelle/Ausgang,
+     Kalibrierung).
+   - **Monitor 2 – Kamera-Fenster** (`MultiviewWindow`): Multiview-Wand **aller** Kameras
+     (Kacheln mit Tracking-Status + NDI-Name), Vollbild via *Kameras anzeigen* / F11.
+     Klick auf eine Kachel = Fokus im Control-Fenster.
+
+   **Multi-Kamera**: je Kamera eine Pipeline (`app/manager.py`). Shortcuts (Enter/Space =
+   TAKE, F11 = Vollbild). Live-Bild Low-Latency direkt aus der OpenCV-Pipeline.
+   **Windows/Linux/Mac.** Styling in `app/theme.py`.
+2. **Web-Control** (`server/` + `web/`) – Browser-UI zum Kalibrieren und Fernsteuern.
+
+Beide lesen/schreiben **dieselben** Dateien (`config/config.json`, `config/gamestate.json`)
+und rendern über dasselbe Modul (`worker/render.py`) – kein Auseinanderlaufen.
+
 ## Architektur in einem Satz
 
 **Node.js = Steuerung** (Web-UI, Kalibrierung, Presets, VMix-API, Prozess-Management),
@@ -31,11 +50,54 @@ Kamera ──SDI──> DeckLink ─┐
 
 Details: siehe [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) und [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## Signalkette (Multi-Kamera)
+
+**Jede Kamera einzeln rein → eigene Pipeline (eigenes Tracking + Kalibrierung) → eigener
+NDI-Feed an VMix.** VMix schaltet die fertigen Feeds `LINE-CAMx` um.
+
+```
+Kamera 1 ─SDI/NDI─► [Track + Linien/Logos] ─► NDI "LINE-CAM1" ─┐
+Kamera 2 ─SDI/NDI─► [Track + Linien/Logos] ─► NDI "LINE-CAM2" ─┼─► VMix
+Kamera N ─ …                                                    ┘
+        (Spielstand Down&Distance/First-Down/Strafen = GLOBAL, speist alle)
+```
+
+- **N gleichzeitige Kamera-Pipelines** (`app/manager.py`, ein Engine-Thread je Kamera).
+- **Multiview** aller Kameras in der App; Klick = Fokus (große PREVIEW|PROGRAM-Ansicht).
+- **Dediziertes Kamera-Tracking je Kamera** (`worker/tracking.py`), pro Kamera zuschaltbar.
+- Eingang je Kamera: Datei · Device (`device:0`, USB/DeckLink) · **NDI** (mit *Quellen suchen*).
+- **Ausgang je Kamera** als eigener NDI-Feed an VMix; **SDI** folgt über DeckLink/AJA.
+
+## Funktionsumfang
+
+- **First-Down-Line** (gelb) + **Line of Scrimmage** (blau) – perspektivisch, hinter Spielern.
+- **Team-Logos auf dem Rasen** – PNG mit Alpha, aufs Feld gewarpt, ebenfalls hinter Spielern
+  (`worker/graphics.py`, Config `fieldGraphics[]`).
+- **Nächste Spielzüge (Down & Distance)** + **Strafen** – Game-State-Modell, das die Feldlinien
+  speist und einen **Scorebug/Strafen-Banner** rendert (`worker/hud.py`); dieselben Werte lassen
+  sich optional per **VMix-API (SetText)** an einen GT-Title pushen.
+- Alles **live steuerbar** über die Web-UI (Down ▸, Neue Serie, Strafe ein/aus, Logo-Position).
+
 ## Warum die Linie *hinter* den Spielern liegt
 
 Die Linie wird **nur auf rasenfarbene Pixel** gemalt (HSV-Farb-Keying). Steht ein Spieler
 auf der Linie, ist sein Pixel nicht „grün" → dort wird nichts gezeichnet → die Linie wirkt,
 als läge sie unter ihm. Siehe `worker/occlusion.py`.
+
+## Schnellstart · Desktop-App (Preview/Program, VMix-artig)
+
+```bash
+python -m venv .venv && source .venv/bin/activate
+pip install -r worker/requirements.txt -r app/requirements.txt
+# Linux zusaetzlich einmalig: sudo apt install libegl1 libgl1 libxkbcommon0
+
+cp config/example.config.json config/config.json   # dann recordings/cam1.mp4 ablegen
+python app/main.py
+#  -> Tab "Quelle / Ausgang": Quelle setzen + Start
+#  -> Tab "Kalibrierung": Punkte im PREVIEW klicken, Yards eintragen, berechnen
+#  -> Tab "Spiel"/"Strafen": Down/Distance/Strafe im PREVIEW setzen, dann TAKE
+#  -> Tab "Quelle / Ausgang": NDI-Ausgang "LINE-PROGRAM" fuer VMix aktivieren
+```
 
 ## Schnellstart (Offline-PoC, ohne Hardware)
 
@@ -74,8 +136,10 @@ NDI-Feeds bleiben unberührt.
 
 | Pfad | Inhalt |
 |------|--------|
-| `server/` | Node.js Control-Plane (Express + WebSocket, VMix-Client, Homographie-Preview) |
-| `web/` | Kalibrier-UI (Browser-Canvas) |
-| `worker/` | Python/OpenCV Data-Plane (Homographie, Okklusion, I/O, NDI) |
-| `config/` | Feldmodell, Kameras, Kalibrierpunkte, Laufzeit-State |
+| `app/` | Desktop-App (PySide6): Preview/Program-Monitore + Control-Menüs, VMix-artig |
+| `server/` | Node.js Control-Plane (Express + WebSocket, VMix-Client, Homographie-Preview, Game-State) |
+| `web/` | Kalibrier- & Spielstand-UI (Browser-Canvas) |
+| `worker/` | Python/OpenCV Data-Plane: `render` (gemeinsam) · `homography` · `occlusion` · `graphics` (Logos) · `hud` (Scorebug) · I/O/NDI |
+| `config/` | Feldmodell, Teams, `fieldGraphics`, `gameState`, Kameras, Kalibrierpunkte, Laufzeit-State |
+| `assets/` | Team-Logos (PNG mit Alpha) – eigene ablegen |
 | `docs/` | Architektur & Roadmap |

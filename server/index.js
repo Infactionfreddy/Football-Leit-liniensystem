@@ -6,7 +6,8 @@ import { createServer } from 'node:http';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { loadConfig, saveConfig, saveState, loadState, findCamera } from './config.js';
+import { loadConfig, saveConfig, saveState, loadState, findCamera,
+  loadGameState, saveGameState } from './config.js';
 import { computeHomography, projectYardLine } from './homography.js';
 import { VmixClient } from './vmix.js';
 import { startWorker, stopWorker, listRunning } from './workers.js';
@@ -72,6 +73,46 @@ app.put('/api/cameras/:id/state', async (req, res) => {
   await saveState(req.params.id, next);
   broadcast({ type: 'state-updated', camera: req.params.id, state: next });
   res.json(next);
+});
+
+// ---- Geteilter Spielstand (Down & Distance, Strafen, LOS/First-Down) ----
+app.get('/api/gamestate', async (_req, res) => {
+  const config = await loadConfig();
+  res.json(await loadGameState(config));
+});
+
+app.put('/api/gamestate', async (req, res) => {
+  const config = await loadConfig();
+  const cur = await loadGameState(config);
+  // Flach mergen, penalty-Objekt separat mergen.
+  const next = { ...cur, ...req.body };
+  if (req.body.penalty) next.penalty = { ...(cur.penalty || {}), ...req.body.penalty };
+  await saveGameState(next);
+  broadcast({ type: 'gamestate-updated', gamestate: next });
+
+  // Optional: dieselben Werte an einen VMix-GT-Title pushen.
+  const push = config?.overlays?.vmixPush;
+  if (push?.enabled && push.titleInput) {
+    try {
+      await new VmixClient(req.body.vmix || {}).pushGameState(push.titleInput, next);
+    } catch (err) {
+      console.warn('VMix-Push fehlgeschlagen:', err.message);
+    }
+  }
+  res.json(next);
+});
+
+// Convenience: Down erhoehen / neue Serie / Strafe umschalten.
+app.post('/api/gamestate/action', async (req, res) => {
+  const config = await loadConfig();
+  const gs = await loadGameState(config);
+  const { action } = req.body || {};
+  if (action === 'nextDown') gs.down = Math.min(4, (gs.down || 1) + 1);
+  else if (action === 'firstDown') { gs.down = 1; gs.distance = 10; gs.losYard = gs.firstDownYard; gs.firstDownYard = gs.firstDownYard + 10; }
+  else if (action === 'togglePenalty') gs.penalty = { ...(gs.penalty || {}), active: !gs.penalty?.active };
+  await saveGameState(gs);
+  broadcast({ type: 'gamestate-updated', gamestate: gs });
+  res.json(gs);
 });
 
 // ---- Worker-Steuerung ----

@@ -33,4 +33,29 @@ export class VmixClient {
   cut(input) {
     return this.call('Cut', { Input: input });
   }
+
+  // Text eines GT-Title-Feldes setzen (fuer Scorebug/Strafen in VMix statt im Feed).
+  setText(input, selectedName, value) {
+    return this.call('SetText', { Input: input, SelectedName: selectedName, Value: value });
+  }
+
+  // Bild eines GT-Title-Feldes setzen (z.B. Team-Logo im Scorebug).
+  setImage(input, selectedName, value) {
+    return this.call('SetImage', { Input: input, SelectedName: selectedName, Value: value });
+  }
+
+  // Kompletten Spielstand in einen GT-Title schreiben.
+  async pushGameState(input, gs) {
+    await this.setText(input, 'DownDistance', downDistanceText(gs));
+    const pen = gs.penalty || {};
+    await this.setText(input, 'Penalty', pen.active ? String(pen.text || '') : '');
+  }
+}
+
+const ORD = { 1: '1st', 2: '2nd', 3: '3rd', 4: '4th' };
+export function downDistanceText(gs) {
+  if (!gs?.down) return '';
+  const d = ORD[gs.down] || `${gs.down}th`;
+  if (gs.goalToGo || gs.distance <= 0) return `${d} & Goal`;
+  return `${d} & ${gs.distance}`;
 }
