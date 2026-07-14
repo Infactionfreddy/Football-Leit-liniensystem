@@ -13,6 +13,8 @@
 - [x] Desktop-App (PySide6): Preview/Program-Monitore + Control-Menüs (VMix-artig), TAKE,
       Live-Kalibrierung per Klick, optionaler NDI-Programm-Ausgang
 - [x] Gemeinsames Render-Modul für CLI + App (worker/render.py)
+- [x] Professionelles VMix-artiges UI-Theme (app/theme.py): Tally-Header, Transition-Bar,
+      Funktions-Bar, Vollbild-Programm-Ausgang, Tastatur-Shortcuts
 
 ## Phase 1 — Feste Kameras live
 - [ ] NDI-Eingang real testen (cyndilib) mit einer Produktionskamera

@@ -12,9 +12,12 @@ _zusätzlichen_ Feed).
 
 ## Zwei Bedien-Oberflächen (gleiche Engine)
 
-1. **Desktop-App** (`app/`, PySide6) – VMix-artig: oben **PREVIEW | PROGRAM**, unten alle
-   Control-Menüs (Spiel, Strafen, Logos, Quelle/Ausgang, Kalibrierung). Live-Bild kommt
-   Low-Latency direkt aus der OpenCV-Pipeline. **Windows/Linux/Mac.**
+1. **Desktop-App** (`app/`, PySide6) – professioneller, VMix-artiger Produktions-Look:
+   Kopfleiste mit Engine-Status + Uhr, **PREVIEW | TAKE/CUT | PROGRAM** mit Tally-Headern,
+   Funktions-Bar (Neue Serie / Down / Flag / Logos / Scorebug) und Control-Tabs (Spiel,
+   Strafen, Logos, Quelle/Ausgang, Kalibrierung). **Vollbild-Programm-Ausgang** auf einem
+   zweiten Monitor (F11), Tastatur-Shortcuts (Enter/Leertaste = TAKE). Live-Bild kommt
+   Low-Latency direkt aus der OpenCV-Pipeline. **Windows/Linux/Mac.** Styling in `app/theme.py`.
 2. **Web-Control** (`server/` + `web/`) – Browser-UI zum Kalibrieren und Fernsteuern.
 
 Beide lesen/schreiben **dieselben** Dateien (`config/config.json`, `config/gamestate.json`)
