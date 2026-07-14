@@ -14,6 +14,19 @@
 Node.js ist ideal für Steuerung, aber **ungeeignet** für Echtzeit-Pixelverarbeitung bei
 1080p50. Deshalb strikte Trennung:
 
+### Front-Ends (austauschbar, gleiche Engine)
+- **Desktop-App (`app/`, PySide6)** – eigenständige Anwendung für Windows/Linux/Mac im
+  VMix-Stil: oben zwei Video-Monitore **PREVIEW | PROGRAM**, dazwischen **TAKE**, unten die
+  Control-Menüs als Tabs (Spiel, Strafen, Logos, Quelle/Ausgang, Kalibrierung). Die Engine
+  läuft als `QThread` (`app/engine.py`) und liefert die komponierten Frames **direkt** als
+  QImage → keine Encoding-/Streaming-Latenz. Optionaler NDI-Programm-Ausgang aus der App.
+  Preview/Program folgen dem Broadcast-Muster: Controls editieren den **Preview**-Zustand,
+  **TAKE** kopiert ihn nach **Program** (und schreibt `gamestate.json`).
+- **Web-Control (`server/` + `web/`)** – Browser-Oberfläche (siehe unten).
+
+Beide Front-Ends nutzen dasselbe Render-Modul `worker/render.py` und dieselben Dateien
+(`config/config.json`, `config/gamestate.json`) → identische Ausgabe, kein Auseinanderlaufen.
+
 ### Control-Plane — Node.js (`server/`)
 - Express-HTTP + WebSocket.
 - Serviert die Kalibrier-UI (`web/`).

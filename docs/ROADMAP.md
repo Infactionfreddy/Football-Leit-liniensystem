@@ -10,6 +10,9 @@
 - [x] Team-Logos aufs Feld (perspektivisch + Okklusion)
 - [x] Game-State: Down & Distance, LOS (blau) + First-Down (gelb), Strafen-Banner, Scorebug
 - [x] VMix-Push (SetText) für Scorebug/Strafen als Alternative zum Burn-in
+- [x] Desktop-App (PySide6): Preview/Program-Monitore + Control-Menüs (VMix-artig), TAKE,
+      Live-Kalibrierung per Klick, optionaler NDI-Programm-Ausgang
+- [x] Gemeinsames Render-Modul für CLI + App (worker/render.py)
 
 ## Phase 1 — Feste Kameras live
 - [ ] NDI-Eingang real testen (cyndilib) mit einer Produktionskamera

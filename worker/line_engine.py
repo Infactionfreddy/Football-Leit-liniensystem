@@ -23,9 +23,7 @@ import numpy as np
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 import homography as hg           # noqa: E402
-import occlusion as occ          # noqa: E402
-import graphics as gfx           # noqa: E402
-import hud                       # noqa: E402
+import render                     # noqa: E402
 from io_sources import open_source  # noqa: E402
 from io_sinks import open_sink      # noqa: E402
 
@@ -77,13 +75,7 @@ def main():
     config = load_json(args.config)
     cam = find_camera(config, args.camera)
 
-    field_cfg = config.get("field", {})
-    field_width = float(field_cfg.get("width", 53.3))
     line_cfg = config.get("line", {})
-    occ_cfg = config.get("occlusion", {})
-    teams = config.get("teams", {})
-    field_graphics = config.get("fieldGraphics", [])
-    overlays = config.get("overlays", {})
     assets_root = os.path.dirname(os.path.abspath(args.config))
     assets_root = os.path.dirname(assets_root)  # Projektwurzel
 
@@ -127,12 +119,6 @@ def main():
     print(f"[{args.camera}] Engine gestartet  quelle={spec}  sink={args.sink}  "
           f"mode={cam.get('mode')}", flush=True)
 
-    hsv_lo = occ_cfg.get("fieldHsvLower", [33, 40, 40])
-    hsv_hi = occ_cfg.get("fieldHsvUpper", [90, 255, 255])
-    morph = int(occ_cfg.get("morphKernel", 5))
-    width_yards = float(line_cfg.get("widthYards", 0.35))
-    softness = int(line_cfg.get("softnessPx", 2))
-
     frame_no = 0
     try:
         while True:
@@ -152,33 +138,12 @@ def main():
                 H = hg.track_update(H, ref_gray, gray)
 
             if state.get("enabled", True):
-                # Rasen-Maske einmal berechnen (fuer Linien UND Logos = Okklusion).
-                field_msk = occ.field_mask(frame, hsv_lo, hsv_hi, morph)
-
-                # 1) Team-Logos aufs Feld (hinter Spielern).
-                if state.get("showGraphics", True) and field_graphics:
-                    frame = gfx.render_field_graphics(
-                        frame, H, field_graphics, field=field_msk, assets_root=assets_root)
-
-                # 2) Line of Scrimmage (blau) + First-Down-Line (gelb) aus Spielstand.
-                los_cfg = overlays.get("lineOfScrimmage", {})
-                fd_cfg = overlays.get("firstDownLine", {"enabled": True})
-
-                def draw_line(yard, color):
-                    quad = hg.yard_line_quad(float(yard), field_width, width_yards)
-                    lm = occ.rasterize_line(frame.shape[:2], hg.project_points(H, quad))
-                    return occ.composite(frame, lm, field_msk, color, softness)
-
-                if los_cfg.get("enabled", True):
-                    frame = draw_line(gamestate.get("losYard", 45.0),
-                                      los_cfg.get("colorBGR", [255, 90, 0]))
-                if fd_cfg.get("enabled", True):
-                    fd_yard = gamestate.get("firstDownYard", state.get("yardPosition", 55.0))
-                    frame = draw_line(fd_yard, state.get("colorBGR", [0, 220, 255]))
-
-                # 3) Scorebug + Strafen-Banner (Bildschirm-Overlay, ins Feed gebrannt).
-                if state.get("showScorebug", True) and overlays.get("scorebug", {}).get("enabled", True):
-                    frame = hud.render_scorebug(frame, gamestate, teams, overlays)
+                # Gemeinsames Rendering (identisch zur Desktop-App).
+                frame, _ = render.compose(
+                    frame, H, config, gamestate,
+                    show_graphics=state.get("showGraphics", True),
+                    show_scorebug=state.get("showScorebug", True),
+                    assets_root=assets_root)
 
             if not sink.write(frame):  # WindowSink: ESC -> False
                 break
