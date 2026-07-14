@@ -29,10 +29,13 @@
 - [ ] Tally-Auswertung: Linie nur auf der in VMix aktiven Kamera rendern
 - [ ] Performance: `cv2.cuda`/GStreamer für 1080p50, Latenzbudget < 4 Frames
 
-## Phase 3 — Freie Kameras (Tracking)
-- [ ] Optisches Tracking (Feature-Matching gegen Keyframe) in `homography.track_update()`
+## Phase 3 — Freie Kameras / Programm-Feed (Tracking)
+- [x] Bildbasiertes Tracking (ORB + RANSAC, `worker/tracking.py::PitchTracker`), Drift gemessen
+- [ ] **Feldmodell-Reanchor** gegen Drift: Yard-/Seitenlinien pro Frame erkennen und absolut
+      einpassen (`PitchTracker.reanchor`) — Kern für broadcast-robust
+- [ ] Schnitt-Erkennung im Programm-Feed (Kamerawechsel) + Re-Init
 - [ ] Optional PTZ-Encoder-Anbindung (Kameramodell → H)
-- [ ] Preset-Erkennung als Fallback
+- [ ] Tally-gesteuertes Umschalten pro-Kamera-Kalibrierung
 
 ## Phase 4 — Produktion
 - [ ] Ausfallsicherheit (Worker-Watchdog, Bypass auf Rohfeed)

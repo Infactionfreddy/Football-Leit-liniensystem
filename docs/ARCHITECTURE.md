@@ -85,11 +85,26 @@ Geraden auf Geraden ab).
 
 ### 3. Kamera-Tracking (fest vs. frei)
 - **`mode: "fixed"`**: H ist konstant. Einmal pro Kamera/Preset kalibrieren. **Jetzt lauffähig.**
-- **`mode: "tracked"`**: H muss pro Frame nachgeführt werden. Erweiterungspunkt in
-  `homography.py::track_update()` — Optionen:
-  - **Optisch**: Feature-Matching/Optical-Flow gegen ein Referenz-Keyframe (rein Software).
-  - **Encoder**: Pan/Tilt/Zoom-Daten der Kamera → H aus Kameramodell (präziser, Hardware nötig).
-  - Start: Preset-Erkennung (bei PTZ-Presets zurück auf die passende `fixed`-H schalten).
+- **`mode: "tracked"`**: H muss pro Frame nachgeführt werden — nötig für frei geführte
+  Kameras **und** für einen geschnittenen Programm-Feed. Umgesetzt in
+  `worker/tracking.py::PitchTracker` (bildbasiert): ORB-Features zwischen Frame_{t-1} und
+  Frame_t → Warp-Homographie `dH` (RANSAC) → `H_t = dH · H_{t-1}`. Bei zu wenigen Inliern
+  wird H gehalten (kein Sprung), `lost` gesetzt.
+  - **Optisch (implementiert)**: rein Software, kein Sensor.
+  - **Encoder (Erweiterung)**: Pan/Tilt/Zoom-Daten → H aus Kameramodell (präziser, HW nötig).
+
+#### Machbarkeit (gemessen, synthetischer Schwenk+Zoom, 60 Frames)
+| | Wert |
+|---|---|
+| Kamera-Versatz Frame 0→60 | 147 px |
+| Linien-Drift am Ende | **6,2 px** (4,2 % der Kamerabewegung), 0 verlorene Frames |
+| Verlauf | 0,17 px (F1) → 3,0 px (F30) → 6,2 px (F60) |
+
+**Ehrliche Deutung:** Bildbasiertes Tracking ist machbar und für kurze Einstellungen gut.
+Reines Frame-zu-Frame-Chaining **driftet** aber langsam (Fehler summieren sich). Broadcast-
+robuste Systeme (Viz Arena etc.) verankern deshalb pro Frame zusätzlich an einem **Feldmodell**
+(erkannte Yard-/Seitenlinien) — Hook: `PitchTracker.reanchor()`. Das ist der eigentliche
+Schritt Richtung „wie die kommerziellen Systeme" (Phase 3).
 
 ## Signal-/Netz-Topologie mit VMix
 
