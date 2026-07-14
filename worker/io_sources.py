@@ -86,3 +86,24 @@ def open_source(spec, loop=False):
     if spec.startswith("ndi://"):
         return NdiSource(spec[len("ndi://"):])
     return CvSource(spec, loop=loop)
+
+
+def list_ndi_sources(timeout=3.0):
+    """Verfuegbare NDI-Quellen im Netz auflisten (fuer die Kamera-Auswahl).
+
+    Rueckgabe: Liste von Quell-Namen (Strings). Leer, wenn cyndilib fehlt oder
+    keine Quelle gefunden wird.
+    """
+    try:
+        from cyndilib.finder import Finder
+    except ImportError:
+        return []
+    try:
+        finder = Finder()
+        finder.open()
+        finder.wait_for_sources(timeout)
+        names = list(finder.get_source_names())
+        finder.close()
+        return names
+    except Exception:
+        return []

@@ -44,6 +44,15 @@ Kamera ──SDI──> DeckLink ─┐
 
 Details: siehe [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) und [`docs/ROADMAP.md`](docs/ROADMAP.md).
 
+## Eingänge & Ausgang (Signalkette)
+
+- **Mehrere Kamera-Eingänge**, in der App umschaltbar (Tab *Quelle / Ausgang → Aktive Kamera*):
+  Datei, USB/DeckLink-Device (`device:0`) oder **NDI** (mit *NDI-Quellen suchen*).
+- **Kamera-Tracking** pro Kamera zuschaltbar (frei geführte Kamera **oder** Programm-Feed):
+  bildbasierte Homographie-Nachführung (`worker/tracking.py`).
+- **Programm-Ausgang an VMix**: neuer NDI-Feed `LINE-CAMx` (blockiert bestehende NDI-Feeds
+  nicht). **SDI-Ausgang** folgt über DeckLink/AJA (native SDK-Schicht).
+
 ## Funktionsumfang
 
 - **First-Down-Line** (gelb) + **Line of Scrimmage** (blau) – perspektivisch, hinter Spielern.

@@ -79,6 +79,15 @@
           [55.0, 0.0]
         ]
       }
+    },
+    {
+      "id": "cam2",
+      "name": "Endzone",
+      "mode": "tracked",
+      "_comment": "mode 'tracked' = frei gefuehrte Kamera / Programm-Feed -> bildbasiertes Tracking (PitchTracker).",
+      "source": { "type": "ndi", "name": "KAMERA-PC (Endzone)" },
+      "output": { "type": "ndi", "name": "LINE-CAM2" },
+      "calibration": { "imagePoints": [], "worldPoints": [] }
     }
   ]
 }

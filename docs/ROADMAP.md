@@ -33,6 +33,7 @@
 - [x] Bildbasiertes Tracking (ORB + RANSAC, `worker/tracking.py::PitchTracker`), Drift gemessen
 - [ ] **Feldmodell-Reanchor** gegen Drift: Yard-/Seitenlinien pro Frame erkennen und absolut
       einpassen (`PitchTracker.reanchor`) — Kern für broadcast-robust
+- [x] Mehrere Kamera-Eingaenge in der App umschaltbar + NDI-Quellen-Discovery + Tracking-Toggle
 - [ ] Schnitt-Erkennung im Programm-Feed (Kamerawechsel) + Re-Init
 - [ ] Optional PTZ-Encoder-Anbindung (Kameramodell → H)
 - [ ] Tally-gesteuertes Umschalten pro-Kamera-Kalibrierung

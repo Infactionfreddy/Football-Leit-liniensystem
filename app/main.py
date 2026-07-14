@@ -29,6 +29,7 @@ sys.path.insert(0, os.path.join(ROOT, "worker"))
 
 from engine import EngineThread  # noqa: E402
 from theme import QSS            # noqa: E402
+from io_sources import list_ndi_sources  # noqa: E402
 
 CONFIG_DIR = os.path.join(ROOT, "config")
 CONFIG_PATH = os.path.join(CONFIG_DIR, "config.json")
@@ -386,6 +387,19 @@ class MainWindow(QMainWindow):
 
     def _tab_source(self):
         w = QWidget(); v = QVBoxLayout(w); v.setSpacing(10)
+
+        # ---- Kamera-Auswahl (mehrere Eingaenge) ----
+        box_cam = QGroupBox("KAMERA / EINGANG"); cg = QGridLayout(box_cam); cg.setVerticalSpacing(8)
+        self.cameraSel = QComboBox()
+        for cam in self.config.get("cameras", []):
+            self.cameraSel.addItem(f"{cam.get('name', cam['id'])}  ·  {cam['id']}", cam["id"])
+        self.cameraSel.currentIndexChanged.connect(self._switch_camera)
+        self.trackChk = QCheckBox("Kamera-Tracking (frei geführt / Programm-Feed)")
+        self.trackChk.setToolTip("Homographie pro Frame bildbasiert nachfuehren")
+        self.trackChk.stateChanged.connect(lambda: self.engine.set_tracking(self.trackChk.isChecked()))
+        cg.addWidget(field_label("Aktive Kamera"), 0, 0); cg.addWidget(self.cameraSel, 1, 0, 1, 2)
+        cg.addWidget(self.trackChk, 1, 2)
+
         box = QGroupBox("QUELLE"); g = QGridLayout(box); g.setVerticalSpacing(8)
         src = self.camera.get("source", {})
         default_spec = src.get("path") or ("ndi://" + src.get("name", "") if src.get("type") == "ndi" else "device:0")
@@ -396,15 +410,24 @@ class MainWindow(QMainWindow):
         g.addWidget(field_label("Quelle (Datei / device:0 / ndi://Name)"), 0, 0, 1, 3)
         g.addWidget(self.sourceEdit, 1, 0, 1, 2); g.addWidget(browse, 1, 2)
         g.addWidget(self.loopChk, 2, 0); g.addWidget(field_label("FPS"), 2, 1); g.addWidget(self.fpsSpin, 2, 2)
+        # NDI-Discovery
+        self.ndiSrcSel = QComboBox(); self.ndiSrcSel.setMinimumWidth(220)
+        disc = QPushButton("NDI-Quellen suchen"); disc.clicked.connect(self._discover_ndi)
+        use = QPushButton("→ übernehmen"); use.clicked.connect(self._use_ndi_source)
+        g.addWidget(field_label("NDI-Quellen im Netz"), 3, 0, 1, 3)
+        g.addWidget(self.ndiSrcSel, 4, 0); g.addWidget(disc, 4, 1); g.addWidget(use, 4, 2)
 
-        box_out = QGroupBox("PROGRAMM-AUSGANG (neuer NDI-Feed – blockiert bestehende nicht)")
+        box_out = QGroupBox("PROGRAMM-AUSGANG AN VMIX (neuer NDI-Feed – blockiert bestehende nicht)")
         og = QGridLayout(box_out); og.setVerticalSpacing(8)
         self.ndiChk = QCheckBox("NDI-Ausgang aktiv")
         self.ndiName = QLineEdit(self.camera.get("output", {}).get("name", "LINE-PROGRAM"))
         self.ndiChk.stateChanged.connect(lambda: self.engine.set_ndi(self.ndiChk.isChecked(), self.ndiName.text()))
         og.addWidget(self.ndiChk, 0, 0); og.addWidget(field_label("Name"), 0, 1); og.addWidget(self.ndiName, 0, 2)
+        hint = QLabel("In VMix diesen NDI-Sender als Input hinzufügen. SDI-Ausgang folgt über DeckLink/AJA.")
+        hint.setObjectName("SectionHint")
+        og.addWidget(hint, 1, 0, 1, 3)
 
-        v.addWidget(box); v.addWidget(box_out); v.addStretch()
+        v.addWidget(box_cam); v.addWidget(box); v.addWidget(box_out); v.addStretch()
         return w
 
     def _tab_calib(self):
@@ -555,6 +578,42 @@ class MainWindow(QMainWindow):
         save_json(CONFIG_PATH, self.config)
         self.engine.set_cfg(self.config)
 
+    # ---- Kamera-/Quellenwahl ----
+    def _switch_camera(self, _idx):
+        cam_id = self.cameraSel.currentData()
+        cam = next((c for c in self.config.get("cameras", []) if c["id"] == cam_id), None)
+        if not cam:
+            return
+        self.camera = cam
+        src = cam.get("source", {})
+        spec = src.get("path") or ("ndi://" + src.get("name", "") if src.get("type") == "ndi" else "device:0")
+        self.sourceEdit.setText(spec or "")
+        self.ndiName.setText(cam.get("output", {}).get("name", "LINE-PROGRAM"))
+        self._load_calib_table()
+        was_running = self.engine.isRunning()
+        if was_running:
+            self.stop_engine()
+        self._push_all_to_engine()
+        if was_running:
+            self.start_engine()
+        self.statusBar().showMessage(f"Aktive Kamera: {cam.get('name', cam_id)}", 3000)
+
+    def _discover_ndi(self):
+        self.statusBar().showMessage("Suche NDI-Quellen …")
+        QApplication.processEvents()
+        names = list_ndi_sources()
+        self.ndiSrcSel.clear()
+        if names:
+            self.ndiSrcSel.addItems(names)
+            self.statusBar().showMessage(f"{len(names)} NDI-Quelle(n) gefunden.", 4000)
+        else:
+            self.statusBar().showMessage("Keine NDI-Quellen (cyndilib installiert? NDI-Runtime aktiv?).", 6000)
+
+    def _use_ndi_source(self):
+        name = self.ndiSrcSel.currentText().strip()
+        if name:
+            self.sourceEdit.setText("ndi://" + name)
+
     # ---- Quelle ----
     def _browse_source(self):
         path, _ = QFileDialog.getOpenFileName(self, "Video waehlen", ROOT, "Video (*.mp4 *.mov *.mkv);;Alle (*)")
@@ -646,7 +705,15 @@ class MainWindow(QMainWindow):
             self._fs.set_frame(program)
 
     def _on_status(self, st):
-        self.fps_pill.setText(f"{st.get('fps', 0):.0f}  fps")
+        txt = f"{st.get('fps', 0):.0f}  fps"
+        tr = st.get("track") or ""
+        if "lost" in tr:
+            txt += "  ⚠"      # Tracking hat den Halt verloren
+        elif "TRACK" in tr:
+            txt += "  ◉"      # Tracking aktiv & stabil
+        self.fps_pill.setText(txt)
+        if tr:
+            self.statusBar().showMessage(f"Tracking: {tr}", 1500)
 
     def closeEvent(self, ev):
         if self._fs is not None:

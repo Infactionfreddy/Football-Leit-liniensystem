@@ -17,6 +17,7 @@ sys.path.insert(0, os.path.join(ROOT, "worker"))
 
 import homography as hg          # noqa: E402
 import render as rnd             # noqa: E402
+from tracking import PitchTracker  # noqa: E402
 from io_sources import open_source  # noqa: E402
 
 try:
@@ -48,6 +49,8 @@ class EngineThread(QThread):
         self._ndi_enabled = False
         self._ndi_name = "LINE-PROGRAM"
         self._ndi = None
+        self._tracking = False
+        self._calib_epoch = 0  # zaehlt bei jeder Neukalibrierung hoch -> Tracker-Reset
 
     # ---- Setter (aus dem GUI-Thread aufgerufen) ----
     def configure(self, cfg, spec, assets_root=None, fps=50.0, loop=True):
@@ -63,6 +66,12 @@ class EngineThread(QThread):
         H = hg.compute_homography(world_points, image_points)
         with QMutexLocker(self._mutex):
             self._H = H
+            self._calib_epoch += 1  # Tracker beim naechsten Frame neu verankern
+
+    def set_tracking(self, enabled):
+        with QMutexLocker(self._mutex):
+            self._tracking = bool(enabled)
+            self._calib_epoch += 1  # Moduswechsel -> Tracker neu initialisieren
 
     def set_program_state(self, gs):
         with QMutexLocker(self._mutex):
@@ -108,6 +117,8 @@ class EngineThread(QThread):
         self._running = True
         period = 1.0 / max(1.0, fps)
         n, t_stat = 0, time.time()
+        tracker = None
+        tracker_epoch = -1
         try:
             while self._running:
                 t0 = time.time()
@@ -115,6 +126,7 @@ class EngineThread(QThread):
                 if not ok or frame is None:
                     self.error.emit("Keine Frames mehr")
                     break
+                tally = None
 
                 with QMutexLocker(self._mutex):
                     cfg = self._cfg
@@ -123,11 +135,25 @@ class EngineThread(QThread):
                     prev_gs = self._preview_gs
                     sg, ss = self._show_graphics, self._show_scorebug
                     ndi_on, ndi_name = self._ndi_enabled, self._ndi_name
+                    tracking, epoch = self._tracking, self._calib_epoch
 
                 if H is None:
                     # Ohne Kalibrierung nur das Rohbild spiegeln.
                     self.framesReady.emit(frame.copy(), frame.copy())
                 else:
+                    # Kamera-Tracking: Homographie pro Frame nachfuehren.
+                    if tracking:
+                        if tracker is None or epoch != tracker_epoch:
+                            tracker = PitchTracker(frame, H)
+                            tracker_epoch = epoch
+                            H_use, tally = H, "TRACK init"
+                        else:
+                            H_use = tracker.update(frame)
+                            tally = "TRACK lost" if tracker.lost else f"TRACK {tracker.last_inliers}"
+                    else:
+                        tracker = None
+                        H_use, tally = H, None
+                    H = H_use
                     mask = rnd.field_mask_from_cfg(frame, cfg)
                     program, _ = rnd.compose(frame.copy(), H, cfg, prog_gs,
                                              show_graphics=sg, show_scorebug=ss,
@@ -144,7 +170,7 @@ class EngineThread(QThread):
 
                 n += 1
                 if time.time() - t_stat >= 1.0:
-                    self.status.emit({"fps": n / (time.time() - t_stat)})
+                    self.status.emit({"fps": n / (time.time() - t_stat), "track": tally})
                     n, t_stat = 0, time.time()
 
                 dt = period - (time.time() - t0)
