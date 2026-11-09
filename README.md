@@ -1,145 +1,112 @@
 # Football Leit-Liniensystem
 
-Virtuelle **First-Down-Line** („gelbe Linie") für American-Football-Produktionen mit
-**VMix** und **Blackmagic**, gesteuert über einen **Node.js-Server** und gerendert mit
-einer **Python/OpenCV**-Engine. Ein-/Ausgabe wahlweise über **NDI** oder **Capture-Karte
-(DeckLink)** – ohne die vorhandenen NDI-Feeds zu blockieren (die Engine erzeugt einen
-_zusätzlichen_ Feed).
+Virtuelle **First-Down-Line** („gelbe Linie") für American-Football-Produktionen mit **VMix** und **Blackmagic**, gesteuert über einen **Node.js-Server** oder eine **PySide6-Desktop-App** und gerendert mit einer **Python/OpenCV**-Engine. Die Engine erzeugt einen _zusätzlichen_ NDI-Feed (`LINE-CAMx`) und blockiert die bestehenden Feeds nicht.
 
-> Status: Scaffold / Proof-of-Concept. Der Offline-Pfad (Video-Datei rein → Linie mit
-> Perspektive + Okklusion → Video/Fenster raus) läuft ohne Spezial-Hardware. Der Live-Pfad
-> (NDI/DeckLink) ist verdrahtet und dokumentiert.
+![Python](https://img.shields.io/badge/Python-3.x-3776AB?logo=python&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-%3E%3D18-339933?logo=node.js&logoColor=white)
+![OpenCV](https://img.shields.io/badge/OpenCV-%E2%89%A54.8-5C3EE8?logo=opencv&logoColor=white)
 
-## Zwei Bedien-Oberflächen (gleiche Engine)
+> Status: Scaffold / Proof-of-Concept. Der Offline-Pfad (Video-Datei rein → Linie mit Perspektive + Okklusion → Video/Fenster raus) läuft ohne Spezial-Hardware. Der Live-Pfad (NDI/DeckLink) ist verdrahtet, aber laut Roadmap noch nicht real getestet.
 
-1. **Desktop-App** (`app/`, PySide6) – **Zwei-Monitor-Layout**:
-   - **Monitor 1 – Control-Fenster**: Kopfleiste (Engine-Status, *Kameras anzeigen* +
-     Monitor-Wahl, Start/Stop Alle, Uhr), fokussierte Kamera als **PREVIEW | TAKE/CUT |
-     PROGRAM**, Funktions-Bar und Control-Tabs (Spiel, Strafen, Logos, Quelle/Ausgang,
-     Kalibrierung).
-   - **Monitor 2 – Kamera-Fenster** (`MultiviewWindow`): Multiview-Wand **aller** Kameras
-     (Kacheln mit Tracking-Status + NDI-Name), Vollbild via *Kameras anzeigen* / F11.
-     Klick auf eine Kachel = Fokus im Control-Fenster.
+## Screenshot
 
-   **Multi-Kamera**: je Kamera eine Pipeline (`app/manager.py`). Shortcuts (Enter/Space =
-   TAKE, F11 = Vollbild). Live-Bild Low-Latency direkt aus der OpenCV-Pipeline.
-   **Windows/Linux/Mac.** Styling in `app/theme.py`.
-2. **Web-Control** (`server/` + `web/`) – Browser-UI zum Kalibrieren und Fernsteuern.
+![Kalibrierung und Spielstand](docs/screenshots/01-kalibrierung-und-spielstand.png)
 
-Beide lesen/schreiben **dieselben** Dateien (`config/config.json`, `config/gamestate.json`)
-und rendern über dasselbe Modul (`worker/render.py`) – kein Auseinanderlaufen.
+## Features
 
-## Architektur in einem Satz
+- **First-Down-Line** (gelb) und **Line of Scrimmage** (blau) – perspektivisch korrekt und *hinter* den Spielern (HSV-Rasen-Keying).
+- **Team-Logos auf dem Rasen** (PNG mit Alpha, gewarpt, ebenfalls okkludiert).
+- **Game-State**: Down & Distance, Ballbesitz, Strafen; Scorebug und Strafen-Banner im Feed; optionaler Push an einen VMix-GT-Title (`SetText`).
+- **Multi-Kamera**: je Kamera eigene Pipeline, eigene Kalibrierung, optionales Tracking (ORB + RANSAC) und eigener NDI-Ausgang.
+- **Zwei Bedienoberflächen** auf derselben Engine: Desktop-App (Zwei-Monitor-Layout, PREVIEW | TAKE | PROGRAM, Multiview) und Web-Control (Kalibrierung, Spielstand, Worker-Steuerung).
+- Eingänge: Datei, Capture-Device (`device:0`, z. B. DeckLink/USB), NDI. Ausgänge: Fenster, Datei, NDI.
 
-**Node.js = Steuerung** (Web-UI, Kalibrierung, Presets, VMix-API, Prozess-Management),
-**Python/OpenCV = Bildverarbeitung** (Homographie, Rasen-Maske/Okklusion, Compositing, NDI-I/O).
+## Tech-Stack
 
-Signalfluss:
+| Bereich | Technik |
+|---|---|
+| Control-Plane | Node.js ≥ 18, Express 4, ws (WebSocket) |
+| Data-Plane | Python, OpenCV, NumPy, Pillow |
+| Desktop-App | PySide6 (Qt) |
+| Web-UI | Vanilla JS + Canvas |
+| Live-I/O (optional) | NDI über `cyndilib` |
 
-```
-Kamera ──SDI──> DeckLink ─┐
-    oder ──NDI────────────┤
-                          ▼
-             Linien-Engine (worker/line_engine.py)
-        [Homographie → Yard-Linie → Rasen-Maske → Compositing]
-                          ▼
-          NEUER NDI-Output "LINE-CAMx"  (zusätzlicher Feed)
-                          ▼
-                        VMix   ← die 4 bestehenden NDI-Feeds bleiben unangetastet
-```
+## Schnellstart
 
-Details: siehe [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) und [`docs/ROADMAP.md`](docs/ROADMAP.md).
+### Voraussetzungen
 
-## Signalkette (Multi-Kamera)
+- Python 3 (Version nicht im Repo festgelegt) und Node.js ≥ 18
+- Linux zusätzlich (für Qt): `libegl1 libgl1 libxkbcommon0`
+- Optional: `cyndilib` für NDI
 
-**Jede Kamera einzeln rein → eigene Pipeline (eigenes Tracking + Kalibrierung) → eigener
-NDI-Feed an VMix.** VMix schaltet die fertigen Feeds `LINE-CAMx` um.
-
-```
-Kamera 1 ─SDI/NDI─► [Track + Linien/Logos] ─► NDI "LINE-CAM1" ─┐
-Kamera 2 ─SDI/NDI─► [Track + Linien/Logos] ─► NDI "LINE-CAM2" ─┼─► VMix
-Kamera N ─ …                                                    ┘
-        (Spielstand Down&Distance/First-Down/Strafen = GLOBAL, speist alle)
-```
-
-- **N gleichzeitige Kamera-Pipelines** (`app/manager.py`, ein Engine-Thread je Kamera).
-- **Multiview** aller Kameras in der App; Klick = Fokus (große PREVIEW|PROGRAM-Ansicht).
-- **Dediziertes Kamera-Tracking je Kamera** (`worker/tracking.py`), pro Kamera zuschaltbar.
-- Eingang je Kamera: Datei · Device (`device:0`, USB/DeckLink) · **NDI** (mit *Quellen suchen*).
-- **Ausgang je Kamera** als eigener NDI-Feed an VMix; **SDI** folgt über DeckLink/AJA.
-
-## Funktionsumfang
-
-- **First-Down-Line** (gelb) + **Line of Scrimmage** (blau) – perspektivisch, hinter Spielern.
-- **Team-Logos auf dem Rasen** – PNG mit Alpha, aufs Feld gewarpt, ebenfalls hinter Spielern
-  (`worker/graphics.py`, Config `fieldGraphics[]`).
-- **Nächste Spielzüge (Down & Distance)** + **Strafen** – Game-State-Modell, das die Feldlinien
-  speist und einen **Scorebug/Strafen-Banner** rendert (`worker/hud.py`); dieselben Werte lassen
-  sich optional per **VMix-API (SetText)** an einen GT-Title pushen.
-- Alles **live steuerbar** über die Web-UI (Down ▸, Neue Serie, Strafe ein/aus, Logo-Position).
-
-## Warum die Linie *hinter* den Spielern liegt
-
-Die Linie wird **nur auf rasenfarbene Pixel** gemalt (HSV-Farb-Keying). Steht ein Spieler
-auf der Linie, ist sein Pixel nicht „grün" → dort wird nichts gezeichnet → die Linie wirkt,
-als läge sie unter ihm. Siehe `worker/occlusion.py`.
-
-## Schnellstart · Desktop-App (Preview/Program, VMix-artig)
+### Installation
 
 ```bash
 python -m venv .venv && source .venv/bin/activate
 pip install -r worker/requirements.txt -r app/requirements.txt
-# Linux zusaetzlich einmalig: sudo apt install libegl1 libgl1 libxkbcommon0
-
-cp config/example.config.json config/config.json   # dann recordings/cam1.mp4 ablegen
-python app/main.py
-#  -> Tab "Quelle / Ausgang": Quelle setzen + Start
-#  -> Tab "Kalibrierung": Punkte im PREVIEW klicken, Yards eintragen, berechnen
-#  -> Tab "Spiel"/"Strafen": Down/Distance/Strafe im PREVIEW setzen, dann TAKE
-#  -> Tab "Quelle / Ausgang": NDI-Ausgang "LINE-PROGRAM" fuer VMix aktivieren
+npm install
+cp config/example.config.json config/config.json
+# eigene Aufnahme z. B. als recordings/cam1.mp4 ablegen
 ```
 
-## Schnellstart (Offline-PoC, ohne Hardware)
+### Start
+
+**Desktop-App**
 
 ```bash
-# 1) Python-Engine
-cd worker
-python -m venv .venv && source .venv/bin/activate
-pip install -r requirements.txt
+python app/main.py
+```
 
-# 2) Config anlegen
-cd ..
-cp config/example.config.json config/config.json
-#   -> recordings/cam1.mp4 hinterlegen (deine Kamera-Aufnahme)
+**Web-Control + Worker**
 
-# 3) Control-Server + Kalibrier-UI
-npm install
-npm start
-#   -> http://localhost:3000  (Feldpunkte klicken, Yard-Linie setzen, kalibrieren)
-
-# 4) Engine auf einer Kamera starten (Fenster-Ausgabe zum Testen)
+```bash
+npm start            # http://127.0.0.1:3000
 python worker/line_engine.py --config config/config.json --camera cam1 --sink window
 ```
 
-## Live-Betrieb (NDI)
+**Live (NDI)**
 
 ```bash
-pip install cyndilib          # NDI für Python
-# Quelle = NDI-Feed, Ziel = neuer NDI-Sender "LINE-CAM1"
+pip install cyndilib
 python worker/line_engine.py --config config/config.json --camera cam1 \
-       --source-override "ndi://KAMERA-PC (Cam 1)" --sink ndi
+  --source-override "ndi://KAMERA-PC (Cam 1)" --sink ndi
 ```
-In VMix den neuen NDI-Sender `LINE-CAM1` als Input hinzufügen – deine vier bestehenden
-NDI-Feeds bleiben unberührt.
 
-## Verzeichnisse
+In VMix den neuen NDI-Sender `LINE-CAM1` als Input hinzufügen.
 
-| Pfad | Inhalt |
-|------|--------|
-| `app/` | Desktop-App (PySide6): Preview/Program-Monitore + Control-Menüs, VMix-artig |
-| `server/` | Node.js Control-Plane (Express + WebSocket, VMix-Client, Homographie-Preview, Game-State) |
-| `web/` | Kalibrier- & Spielstand-UI (Browser-Canvas) |
-| `worker/` | Python/OpenCV Data-Plane: `render` (gemeinsam) · `homography` · `occlusion` · `graphics` (Logos) · `hud` (Scorebug) · I/O/NDI |
-| `config/` | Feldmodell, Teams, `fieldGraphics`, `gameState`, Kameras, Kalibrierpunkte, Laufzeit-State |
-| `assets/` | Team-Logos (PNG mit Alpha) – eigene ablegen |
-| `docs/` | Architektur & Roadmap |
+## Konfiguration
+
+| Variable | Standard | Bedeutung |
+|---|---|---|
+| `HOST` | `127.0.0.1` | Bind-Adresse des Node-Servers |
+| `PORT` | `3000` | Port des Node-Servers |
+| `PYTHON_BIN` | `python3` | Python-Interpreter für gestartete Worker |
+
+Feldmodell, Kameras, Overlays, Teams und Logos stehen in `config/config.json` (Vorlage: `config/example.config.json`). Details: [docs/KONFIGURATION.md](docs/KONFIGURATION.md).
+
+## Projektstruktur
+
+```
+.
+├── app/        # Desktop-App (PySide6): main, engine (QThread), manager, theme
+├── server/     # Node.js Control-Plane: index, config, homography, vmix, workers
+├── web/        # Browser-UI (index.html, app.js, style.css)
+├── worker/     # Python/OpenCV: line_engine, render, homography, occlusion,
+│               #   graphics, hud, tracking, io_sources, io_sinks
+├── config/     # example.config.json (+ Laufzeitdateien)
+├── assets/     # Team-Logos (PNG mit Alpha)
+└── docs/       # Dokumentation
+```
+
+## Dokumentation
+
+- [Architektur](docs/ARCHITEKTUR.md)
+- [Installation](docs/INSTALLATION.md)
+- [Konfiguration](docs/KONFIGURATION.md)
+- [Entwicklung](docs/ENTWICKLUNG.md)
+- [API](docs/API.md)
+- Bestehend: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) (Originaltext des Autors) und [docs/ROADMAP.md](docs/ROADMAP.md)
+
+## Hinweis zu Logos
+
+Team-Logos werden aus Rechtegründen nicht eingecheckt; eigene PNGs gehören nach `assets/` (siehe `assets/README.md`).
